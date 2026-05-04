@@ -69,7 +69,8 @@ def response_download_file(data, filename, mimetype):
     response = make_response(data, 200)
     response.mimetype = mimetype
     response.status_code = 200
-    response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+    if filename is not None:
+        response.headers['Content-Disposition'] = f'attachment; filename={filename}'
     response.headers['API-Service'] = 'ENACTS Data Sharing Tool'
     return response
 
@@ -82,8 +83,9 @@ def response_download_error(message, filename, code=422):
     response.headers['API-Service'] = 'ENACTS Data Sharing Tool'
     return response
 
-def response_download_json(data, filename):
-    filename = f'{filename}.json'
+def response_download_json(data, filename=None):
     mimetype = 'application/json'
+    if filename is not None:
+        filename = f'{filename}.json'
     return response_download_file(data, filename, mimetype)
 

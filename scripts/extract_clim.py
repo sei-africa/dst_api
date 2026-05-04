@@ -80,7 +80,8 @@ def _clim_format_gridded(out_clim, dataset):
     lon = [round(x, 6) for x in lon]
     lat = out_clim['lat'].values.tolist()
     lat = [round(x, 6) for x in lat]
-    date = out_clim['date'].values.tolist()
+    # date = out_clim['date'].values.tolist()
+    date = out_clim.attrs['date_values']
     time = out_clim['time'].values.tolist()
 
     name_dim4 = None
@@ -188,10 +189,14 @@ def climatology_gridded_data(params, dataset, bbox=None,
         out_clim += [clim]
 
     out_clim = xr.concat(out_clim, pd.Index(tindex['syear'], name='time'))
-    coords = {'time': tindex['syear']}
-    xr_dates = xr.DataArray(tindex['dates'], name='date', coords=coords, dims='time')
-    # xr_dates = xr.Dataset({'date': ('time', tindex['dates'])}, coords=coords)
-    out_clim = xr.merge([out_clim, xr_dates])
+    # coords = {'time': tindex['syear']}
+    # xr_dates = xr.DataArray(tindex['dates'], name='date', coords=coords, dims='time')
+    # # xr_dates = xr.Dataset({'date': ('time', tindex['dates'])}, coords=coords)
+    # out_clim = xr.merge([out_clim, xr_dates])
+    out_clim = xr.merge([out_clim])
+    out_clim.attrs['date_values'] = tindex['dates']
+    out_clim.attrs['date_dimension'] = 'time'
+
     if keep_DataArray:
         return out_clim
     else:

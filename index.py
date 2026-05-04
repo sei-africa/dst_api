@@ -33,7 +33,8 @@ def dataset_info(dataset, temporal_res, variable):
         if variable:
             variable = variable.lower()
             pyobj = pyobj[variable]
-    return response_download_json(pyobj, 'dataset-info')
+    # return response_download_json(pyobj, 'dataset-info')
+    return response_download_json(pyobj)
 
 @dst_api.route('/download_raw_data', methods=['GET', 'POST'])
 def download_raw_data():

@@ -35,12 +35,24 @@ def aggregate_climatology(xr_ds, clim_fun, min_year,
     elif clim_fun == 'mean-stdev':
         mn = xr_ds.mean(dim='y', skipna=True)
         sd = xr_ds.std(dim='y', skipna=True)
+        # clim = xr.concat(
+        #     [mn, sd],
+        #     pd.Index(
+        #         ['mean', 'stdev'],
+        #         name='statistics',
+        #          dtype='<U10'
+        #     )
+        # )
         clim = xr.concat(
             [mn, sd],
-            pd.Index(
-                ['mean', 'stdev'],
-                name='statistics',
-                 dtype='<U10'
+            dim=xr.DataArray(
+                [0, 1],
+                dims="statistics",
+                name="statistics",
+                attrs={
+                    "long_name": "statistics",
+                    "labels": "0=mean, 1=stdev"
+                }
             )
         )
     else:

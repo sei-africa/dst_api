@@ -3,6 +3,9 @@ import xarray as xr
 from .extract_clim import climatology_gridded_data
 from app.scripts._global import GLOBAL_CONFIG
 
+import warnings
+warnings.filterwarnings('ignore', category=UserWarning)
+
 def compute_some_climatogies(clim):
     params = {'dataset': None, 'temporalRes': None, 'variable': None,
               'geomExtract': 'original', 'climFunction': None,
@@ -22,9 +25,10 @@ def compute_some_climatogies(clim):
         return None
 
     datasets = GLOBAL_CONFIG['datasets']
-    data_dir = GLOBAL_CONFIG['data_dir']
-
-    zarr_dir = os.path.join(data_dir, 'zarr_clim', clim)
+    # data_dir = GLOBAL_CONFIG['data_dir']
+    # zarr_dir = os.path.join(data_dir, 'zarr_clim', clim)
+    clim_dir = GLOBAL_CONFIG['climatology']
+    zarr_dir = os.path.join(clim_dir['zarr_dir'], clim)
     if not os.path.exists(zarr_dir):
         os.makedirs(zarr_dir)
 
@@ -59,14 +63,22 @@ def compute_some_climatogies(clim):
         print(f'Compute climatology for {dset[0]} > {dset[1]} > {dset[2]}')
         xr_clim = climatology_gridded_data(params, dataset, keep_DataArray=True)
         xr_clim = xr_clim.chunk(chunks=zarr_chunks)
-        xr_clim.to_zarr(store=zarr_path, mode='w', consolidated=False)
+        xr_clim.to_zarr(
+            store=zarr_path,
+            mode='w',
+            consolidated=False,
+            zarr_format=3
+        )
 
     print('Computing climatology and conversion to zarr done!')
 
 def get_zarr_clim(dset, tres, var, clim):
     datasets = GLOBAL_CONFIG['datasets']
-    data_dir = GLOBAL_CONFIG['data_dir']
-    zarr_dir = os.path.join(data_dir, 'zarr_clim', clim)
+    # data_dir = GLOBAL_CONFIG['data_dir']
+    # zarr_dir = os.path.join(data_dir, 'zarr_clim', clim)
+    clim_dir = GLOBAL_CONFIG['climatology']
+    zarr_dir = os.path.join(clim_dir['zarr_dir'], clim)
+
     zarr_path = os.path.join(zarr_dir, dset, tres, var)
     zarr_chunks = datasets[dset]['dekadal']['chunks']
     zarr_chunks = zarr_chunks.copy()
@@ -78,4 +90,15 @@ def get_zarr_clim(dset, tres, var, clim):
     else:
         return None
     zarr_chunks[ex_key] = -1
-    return xr.open_zarr(zarr_path, chunks=zarr_chunks, consolidated=False)
+    xr_clim = xr.open_zarr(
+        zarr_path,
+        chunks=zarr_chunks,
+        consolidated=False
+    )
+    date_values = xr_clim.attrs['date_values']
+    xr_clim['date'] = xr.DataArray(
+        date_values,
+        dims='time',
+        name='date'
+    )
+    return xr_clim
