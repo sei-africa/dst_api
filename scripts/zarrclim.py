@@ -60,7 +60,7 @@ def compute_some_climatogies(clim):
         dataset = datasets[params['dataset']][params['temporalRes']]
         dataset = dataset['netcdf'][params['variable']]
 
-        print(f'Compute climatology for {dset[0]} > {dset[1]} > {dset[2]}')
+        print(f'Compute "{clim}" climatology for {dset[0]} > {dset[1]} > {dset[2]}')
         xr_clim = climatology_gridded_data(params, dataset, keep_DataArray=True)
         xr_clim = xr_clim.chunk(chunks=zarr_chunks)
         xr_clim.to_zarr(
