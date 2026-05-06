@@ -19,9 +19,11 @@ def _extract_statistics(ds, params):
         qv = np.array(params['precentileValue'])/100
         ds = ds.sel(quantile=qv)
     elif params['climFunction'] == 'mean':
-        ds = ds.sel(statistics='mean')
+        # ds = ds.sel(statistics='mean')
+        ds = ds.sel(statistics=0)
     elif params['climFunction'] == 'stdev':
-        ds = ds.sel(statistics='stdev')
+        # ds = ds.sel(statistics='stdev')
+        ds = ds.sel(statistics=1)
     elif params['climFunction'] == 'mean-stdev':
         ds = ds
     else:
@@ -201,6 +203,7 @@ def zarrclim_multipoints_data(params, dataset):
     csvdata = csvdata[index]
 
     date = out_clim[0]['date'].values.tolist()
+    # date = out_clim[0].attrs['date_values']
 
     out = []
     for oc in out_clim:
