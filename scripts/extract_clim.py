@@ -14,6 +14,12 @@ from .geojson import get_user_geojson, geojson_polygons_points
 from .aggregate_data import aggregate_climatology, aggregate_timeSeries
 from app.scripts._global import GLOBAL_CONFIG
 
+def is_climato_normals(params):
+    s = params['startYear'] == 1991
+    e = params['endYear'] == 2020
+    m = params['minYear'] == 30
+    return s and e and m
+
 def _clim_params_info(params):
     datasets = GLOBAL_CONFIG['datasets'][params['dataset']]
     dataset = datasets[params['temporalRes']]

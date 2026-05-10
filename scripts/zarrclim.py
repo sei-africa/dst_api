@@ -3,13 +3,10 @@ import xarray as xr
 from .extract_clim import climatology_gridded_data
 from app.scripts._global import GLOBAL_CONFIG
 
-import warnings
-warnings.filterwarnings('ignore', category=UserWarning)
-
 def compute_some_climatogies(clim):
     params = {'dataset': None, 'temporalRes': None, 'variable': None,
               'geomExtract': 'original', 'climFunction': None,
-              'startYear': 1991, 'endYear': 2020, 'minYear': 29,
+              'startYear': 1991, 'endYear': 2020, 'minYear': 30,
                'seasLength': 3, 'daysWindow': 0, 'climDate': None,
               'gridded': True, 'fullYear': True}
 
@@ -25,8 +22,6 @@ def compute_some_climatogies(clim):
         return None
 
     datasets = GLOBAL_CONFIG['datasets']
-    # data_dir = GLOBAL_CONFIG['data_dir']
-    # zarr_dir = os.path.join(data_dir, 'zarr_clim', clim)
     clim_dir = GLOBAL_CONFIG['climatology']
     zarr_dir = os.path.join(clim_dir['zarr_dir'], clim)
     if not os.path.exists(zarr_dir):
@@ -74,8 +69,6 @@ def compute_some_climatogies(clim):
 
 def get_zarr_clim(dset, tres, var, clim):
     datasets = GLOBAL_CONFIG['datasets']
-    # data_dir = GLOBAL_CONFIG['data_dir']
-    # zarr_dir = os.path.join(data_dir, 'zarr_clim', clim)
     clim_dir = GLOBAL_CONFIG['climatology']
     zarr_dir = os.path.join(clim_dir['zarr_dir'], clim)
 
