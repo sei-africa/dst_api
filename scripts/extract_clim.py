@@ -65,11 +65,23 @@ def _clim_params_info(params):
         freqOper = params['frequencyOper']
         freqThres = float(params['frequencyThres'])
 
+    proba_thres = 10.
+    if params['climFunction'] == 'probExc':
+        proba_thres = float(params['probaThres'])
+
+    if params['climFunction'] == 'probNoExc':
+        proba_thres = float(params['probaThres'])
+
+    trend_unit = 'perYear'
+    if params['climFunction'] == 'trend':
+        trend_unit = params['trendUnit']
+
     return {'input': input_res, 'output': params['temporalRes'],
             'startYear': start_year, 'endYear': end_year, 'minYear': min_year,
             'minFrac': min_frac, 'seasLen': seas_len,
             'dayWin': day_win, 'percValue': perc_value,
-            'freqOper': freqOper, 'freqThres': freqThres}
+            'freqOper': freqOper, 'freqThres': freqThres,
+            'probaThres': proba_thres, 'trendUnit': trend_unit}
 
 def _clim_multiple_columns(params):
     ret = None
@@ -79,6 +91,16 @@ def _clim_multiple_columns(params):
                 ret = {'name': 'Percentiles', 'values': params['precentileValue']}
     if params['climFunction'] == 'mean-stdev':
         ret = {'name': 'Statistics', 'values': ['mean', 'stdev']}
+    if params['climFunction'] == 'trend':
+        ret = {
+            'name': 'Metrics',
+            'values': [
+                    'slope', 'std.slope', 't-value.slope', 'p-value.slope',
+                    'intercept', 'std.intercept', 't-value.intercept', 'p-value.intercept',
+                    'R2', 'sigma'
+                ]
+            }
+
     return ret
 
 def _clim_format_gridded(out_clim, dataset):
@@ -112,7 +134,6 @@ def _clim_format_gridded(out_clim, dataset):
             'date': date, 'data': xdata, 'ndims': ndims,
             'ndim4': name_dim4, 'dim4': dim4,
             'missval': dataset['missval']}
-
 
 def _clim_create_miss_gridded(xr_ds, params, tclim):
     clim = xr_ds[params['variable']].isel(time=0)
@@ -189,9 +210,12 @@ def climatology_gridded_data(params, dataset, bbox=None,
                 aggr = xr_data[params['variable']].isel(time=ix['index'])
             aggr = aggr.rename({'time': 'y'})
 
-        clim = aggregate_climatology(aggr, params['climFunction'],
+        clim = aggregate_climatology(
+                            aggr, params['climFunction'],
                             tclim['minYear'], tclim['percValue'],
-                            tclim['freqOper'], tclim['freqThres'])
+                            tclim['freqOper'], tclim['freqThres'],
+                            tclim['probaThres'], tclim['trendUnit']
+                        )
         out_clim += [clim]
 
     out_clim = xr.concat(out_clim, pd.Index(tindex['syear'], name='time'))

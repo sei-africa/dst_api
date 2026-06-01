@@ -36,13 +36,20 @@ def get_index_dates_series(times, time_res, start_date, end_date):
 
     return {'status': 0, 'index': index, 'dates': dates, 'length': None}
 
-def get_index_dates_aggregate(times, out_time_res, in_time_res,
-                              start_date, end_date, seas_mon=1, seas_len=3):
+def get_index_dates_aggregate(times,
+                              out_time_res, in_time_res,
+                              start_date, end_date,
+                              seas_mon=1, seas_len=3,
+                              full_year=False):
     if not out_time_res in ['dekadal', 'monthly', 'seasonal', 'annual']:
         return {'status': -1, 'message': 'Unknown output temporal resolution'}
 
-    seq_dates = aggregate_range_dates(out_time_res, in_time_res,
-                        start_date, end_date, seas_mon, seas_len)
+    seq_dates = aggregate_range_dates(
+        out_time_res, in_time_res,
+        start_date, end_date,
+        seas_mon, seas_len, full_year
+    )
+
     if seq_dates is None:
         return {'status': -1, 'message': 'Unknown input temporal resolution'}
 
@@ -98,16 +105,18 @@ def get_index_dates_dataset(xr_coords, params, input_res, compute):
         if params['temporalRes'] == 'seasonal':
             seasS = params['seasStart']
             seasL = params['seasLength']
+            fullYearTS = params['fullYearTS']
         else:
             seasS = None
             seasL = None
+            fullYearTS = None
 
         out = get_index_dates_aggregate(xr_coords['time'],
                                     params['temporalRes'],
                                     input_res,
                                     params['startDate'],
                                     params['endDate'],
-                                    seasS, seasL)
+                                    seasS, seasL, fullYearTS)
     else:
         out = get_index_dates_series(xr_coords['time'],
                                params['temporalRes'],

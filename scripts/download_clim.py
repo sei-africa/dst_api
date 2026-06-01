@@ -31,6 +31,7 @@ def _clim_netcdf_info(params):
     dataset = _clim_get_dataset(params)
     keys = ['name', 'varid', 'units', 'missval']
     info = {key: dataset[key] for key in keys}
+    info['out_varid'] = params['variable']
 
     if params['climFunction'] == 'mean':
         info['name'] = f"Average, {info['name']} Climatology"
@@ -46,6 +47,7 @@ def _clim_netcdf_info(params):
     elif params['climFunction'] == 'percentile':
         if type(params['precentileValue']) is list:
             info['name'] = [f"{p}th Percentile, {info['name']}" for p in params['precentileValue']]
+            info['units'] = [info['units'] for p in params['precentileValue']]
             info['out_varid'] = [f"{info['varid']}_{p}" for p in params['precentileValue']]
         else:
             info['name'] = f"{params['precentileValue']}th Percentile, {info['name']}"
@@ -56,9 +58,45 @@ def _clim_netcdf_info(params):
         info['name'] = f"Frequency of {info['name']} {params['frequencyOper']} {params['frequencyThres']}"
         info['units'] = '%'
     elif params['climFunction'] == 'mean-stdev':
-        info['name'] = [f"Average, {info['name']} Climatology",
-                        f"Standard Deviation, {info['name']} Climatology"]
+        info['name'] = [
+            f"Average, {info['name']} Climatology",
+            f"Standard Deviation, {info['name']} Climatology"
+        ]
+        u = info['units']
+        info['units'] = [u, u]
         info['out_varid'] = ['mean', 'stdev']
+    elif params['climFunction'] == 'probExc':
+        info['name'] = f"Probability of exceeding {params['probaThres']}, {info['name']}"
+        info['units'] = '%'
+        info['out_varid'] = 'proba_exceeding'
+    elif params['climFunction'] == 'probNoExc':
+        info['name'] = f"Probability of non-exceeding {params['probaThres']}, {info['name']}"
+        info['units'] = '%'
+        info['out_varid'] = 'proba_non_exceeding'
+    elif params['climFunction'] == 'trend':
+        metrics = [
+            'slope', 'std.slope', 't-value.slope', 'p-value.slope',
+            'intercept', 'std.intercept', 't-value.intercept', 'p-value.intercept',
+            'R2', 'sigma'
+        ]
+        info['name'] = [
+            'Linear trend', 'Standard error of trend', 't-statistic of trend',
+            'p-value of trend', 'Regression intercept', 'Standard error of intercept',
+            't-statistic of intercept', 'p-value of intercept',
+            'Coefficient of determination', 'Residual standard deviation'
+        ]
+        u = info['units']
+        info['units'] = [u, f'{u}/year', '', '', u, u, '', '', '', u]
+        if params['trendUnit'] == 'perYear':
+            info['units'][0] = f'{u}/year'
+            info['name'][0] = f"{info['name'][0]} per year"
+        if params['trendUnit'] == 'overPeriod':
+            info['units'][0] = u
+            info['name'][0] = f"{info['name'][0]} over the analysis period"
+        if params['trendUnit'] == 'percPeriod':
+            info['units'][0] = '%'
+            info['name'][0] = f"{info['name'][0]} in percentage of mean"
+        info['out_varid'] = metrics
     else:
         info['name'] = None
 

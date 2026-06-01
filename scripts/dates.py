@@ -212,12 +212,15 @@ def get_ncinfo_date(time_res, date):
 
 def format_output_date(params):
     if params['temporalRes'] == 'seasonal':
-        period = f"{params['startDate']}-{params['endDate']}"
-        smon = int(params['seasStart'])
-        slen = int(params['seasLength'])
-        mn = (smon + slen - 1) % 12
-        emon = 12 if mn == 0 else mn
-        date = f'{period}_{smon:02}-{emon:02}'
+        if params['fullYearTS']:
+            date = f"{params['startDate']}-01_{params['endDate']}-12"
+        else:
+            period = f"{params['startDate']}-{params['endDate']}"
+            smon = int(params['seasStart'])
+            slen = int(params['seasLength'])
+            mn = (smon + slen - 1) % 12
+            emon = 12 if mn == 0 else mn
+            date = f'{period}_{smon:02}-{emon:02}'
     else:
         date = f"{params['startDate']}_{params['endDate']}"
 
@@ -265,7 +268,8 @@ def aggregate_seq_dates(out_res, in_res, date):
 
 def aggregate_range_dates(out_res, in_res,
                           start_date, end_date,
-                          seas_mon=1, seas_len=3):
+                          seas_mon=1, seas_len=3,
+                          full_year=False):
     # start_date, end_date: for out_res and out_res format
     seq_date = []
     if out_res == 'dekadal':
@@ -308,7 +312,15 @@ def aggregate_range_dates(out_res, in_res,
         seas_mon = int(seas_mon)
         start = int(start_date)
         end = int(end_date)
-        starts = [f'{y}-{seas_mon}' for y in range(start, end + 1)]
+
+        if full_year:
+            starts = seq_months_betwen_months(
+                f'{start}-01',
+                f'{end}-12'
+            )
+        else:
+            starts = [f'{y}-{seas_mon}' for y in range(start, end + 1)]
+
         ends = [add_months(smon, seas_len - 1) for smon in starts]
 
         if in_res == 'daily':

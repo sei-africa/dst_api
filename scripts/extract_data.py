@@ -93,7 +93,11 @@ def extract_rectangle_point_data(params, dataset, bbox):
     period = format_output_date(params)
 
     if dataset['compute']:
-        tindex = get_index_dates_dataset(xr_coords, params, dataset['input'], dataset['compute'])
+        tindex = get_index_dates_dataset(
+            xr_coords, params,
+            dataset['input'],
+            dataset['compute']
+        )
         if tindex['status'] == -1: return tindex
 
         index = tindex['index']
@@ -284,7 +288,11 @@ def extract_polygons_points(params, dataset, xr_data, xr_coords, sindex):
     period = format_output_date(params)
 
     if dataset['compute']:
-        tindex = get_index_dates_dataset(xr_coords, params, dataset['input'], dataset['compute'])
+        tindex = get_index_dates_dataset(
+            xr_coords, params,
+            dataset['input'],
+            dataset['compute']
+        )
         if tindex['status'] == -1: return tindex
 
         index = tindex['index']
@@ -342,7 +350,11 @@ def extract_polygons_points(params, dataset, xr_data, xr_coords, sindex):
                     val = np.repeat(dataset['missval'], len(index))
             out += [val]
     else:
-        tindex = get_index_dates_dataset(xr_coords, params, params['temporalRes'], dataset['compute'])
+        tindex = get_index_dates_dataset(
+            xr_coords, params,
+            params['temporalRes'],
+            dataset['compute']
+        )
         if tindex['status'] == -1: return tindex
 
         index = tindex['index']
@@ -371,7 +383,11 @@ def extract_multipoints(params, dataset, xr_data, xr_coords, sindex):
     period = format_output_date(params)
 
     if dataset['compute']:
-        tindex = get_index_dates_dataset(xr_coords, params, dataset['input'], dataset['compute'])
+        tindex = get_index_dates_dataset(
+            xr_coords, params,
+            dataset['input'],
+            dataset['compute']
+        )
         if tindex['status'] == -1: return tindex
 
         index = tindex['index']
@@ -433,7 +449,11 @@ def extract_multipoints(params, dataset, xr_data, xr_coords, sindex):
                     val = np.repeat(dataset['missval'], len(index))
             out += [val]
     else:
-        tindex = get_index_dates_dataset(xr_coords, params, params['temporalRes'], dataset['compute'])
+        tindex = get_index_dates_dataset(
+            xr_coords, params,
+            params['temporalRes'],
+            dataset['compute']
+        )
         if tindex['status'] == -1: return tindex
 
         index = tindex['index']

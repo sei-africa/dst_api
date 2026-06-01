@@ -242,7 +242,12 @@ def write_netcdf_clim(data, ncinfo, ncfile):
                 nc_data.missing_value = ncinfo['missval']
             nc_data[:, :, :] = np.array(data['data'][i])
     else:
-        nc_data = ncout.createVariable(ncinfo['varid'], np.float32,
+        if 'out_varid' in ncinfo:
+            varid = ncinfo['out_varid']
+        else:
+            varid = ncinfo['varid']
+
+        nc_data = ncout.createVariable(varid, np.float32,
             ('time', 'lat', 'lon'), zlib=True, complevel=9)
         nc_data.long_name = ncinfo['name']
         nc_data.units = ncinfo['units']

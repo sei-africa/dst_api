@@ -96,11 +96,14 @@ def _anomaly_format_params(params):
         day_win = int(params['daysWindow'])
     params['daysWindow'] = day_win
 
+    if 'fullYearTS' not in params:
+        params['fullYearTS'] = False
+
     return params
 
 def _anomaly_get_data(params):
     params = _anomaly_format_params(params)
-    params_clim = ['dataset', 'temporalRes', 'variable', 
+    params_clim = ['dataset', 'temporalRes', 'variable', 'fullYearTS',
         'fullYear', 'climDate', 'seasLength', 'daysWindow',
         'climFunction', 'startYear', 'endYear', 'minYear',
         'geomExtract', 'pointsSource', 'pointsFile', 'pointsList',

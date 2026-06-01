@@ -31,6 +31,7 @@ def _get_download_dataset(params):
     tmp = datasets[params['temporalRes']]
     out = tmp['netcdf'][params['variable']]
     out['compute'] = tmp['compute']
+    out['out_varid'] = params['variable']
     out_copy = copy.deepcopy(out)
     return out_copy
 

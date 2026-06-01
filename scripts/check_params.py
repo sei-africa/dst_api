@@ -53,8 +53,15 @@ def checkParamsRequest_rawdata(params):
             et = _checkDateYear('endDate', params['endDate'])
             if et: return et
 
-            seasStart = _checkseasonStartLength(params, 'seasStart', 1, 12)
-            if seasStart: return seasStart
+            if params['geomExtract'] == 'points':
+                fullYearTS = _checkParamBoolean(params, 'fullYearTS', False)
+                if fullYearTS['status'] == -1: return {'ret': fullYearTS}
+                params = fullYearTS['params']
+
+            if not params['fullYearTS']:
+                seasStart = _checkseasonStartLength(params, 'seasStart', 1, 12)
+                if seasStart: return seasStart
+
             seasLength = _checkseasonStartLength(params, 'seasLength', 2, 12)
             if seasLength: return seasLength
         else:
@@ -169,7 +176,9 @@ def checkParamsRequest_climatology(params):
     else:
         params['climDate'] = None
 
-    climF = ['mean', 'median', 'min', 'max', 'stdev', 'percentile', 'cv', 'frequency', 'mean-stdev']
+    climF = ['mean', 'median', 'min', 'max', 'stdev', 'percentile',
+             'cv', 'frequency', 'mean-stdev', 'probExc', 'probNoExc',
+             'trend']
     climFunction = _checkParamsKey(params, 'climFunction', climF)
     if climFunction: return climFunction
 
@@ -198,6 +207,16 @@ def checkParamsRequest_climatology(params):
         if params['outFormat'] == 'CSV-CDT-Format':
             msg = 'The mean and stdev combined can not be computed CDT for output format.'
             return {'status': -1, 'message': msg}
+
+    if params['climFunction'] == 'probExc' or params['climFunction'] == 'probNoExc':
+        probaThres = _checkParamFloat(params, 'probaThres')
+        if probaThres['status'] == -1: return probaThres
+        params = probaThres['params']
+
+    if params['climFunction'] == 'trend':
+        trendU = ['perYear', 'overPeriod', 'percPeriod']
+        trendUnit = _checkParamsKey(params, 'trendUnit', trendU)
+        if trendUnit: return trendUnit
 
     webApp = _checkParamBoolean(params, 'webApp', False)
     if webApp['status'] == -1: return {'ret': webApp}

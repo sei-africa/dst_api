@@ -52,6 +52,7 @@ def response_data_json(data, ncinfo):
                  'Dimensions': dims,
                  'VariableName': ncinfo['name'],
                  'VariableUnits': ncinfo['units'],
+                 'VariableVarId': ncinfo['out_varid'],
                  'Missing': miss}
     if poly:
         json_data['Name'] = poly
@@ -84,6 +85,7 @@ def response_clim_json(data, ncinfo):
                  'Dimensions': dims,
                  'VariableName': ncinfo['name'],
                  'VariableUnits': ncinfo['units'],
+                 'VariableVarId': ncinfo['out_varid'],
                  'Missing': data['missval']}
     if len(data['ndims']) > 3:
         key_dim = data['ndim4'].title()
