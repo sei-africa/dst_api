@@ -175,11 +175,25 @@ def write_netcdf_nc(lon, lat, data, ncinfo, timeinfo, ncfile):
     nc_lon.axis = 'X'
     nc_lon[:] = np.array(lon.tolist())
 
-    # if ncinfo['prec'] == 'float'
-    #     prec = np.float32
-    nc_prec = np.float32
-    nc_data = ncout.createVariable(ncinfo['varid'], nc_prec,
-        (nTime, nLat, nLon), zlib=True, complevel=6)
+    if ncinfo['prec'] == 'float':
+        nc_prec = np.float32
+    elif ncinfo['prec'] == 'integer':
+        nc_prec = np.int32
+    else:
+        nc_prec = np.float32
+
+    if 'out_varid' in ncinfo:
+        varid = ncinfo['out_varid']
+    else:
+        varid = ncinfo['varid']
+
+    nc_data = ncout.createVariable(
+        varid,
+        nc_prec,
+        (nTime, nLat, nLon),
+        zlib=True,
+        complevel=6
+    )
     nc_data.long_name = ncinfo['name']
     nc_data.units = ncinfo['units']
     nc_data.missing_value = ncinfo['missval']
@@ -247,8 +261,13 @@ def write_netcdf_clim(data, ncinfo, ncfile):
         else:
             varid = ncinfo['varid']
 
-        nc_data = ncout.createVariable(varid, np.float32,
-            ('time', 'lat', 'lon'), zlib=True, complevel=9)
+        nc_data = ncout.createVariable(
+            varid,
+            np.float32,
+            ('time', 'lat', 'lon'),
+            zlib=True,
+            complevel=9
+        )
         nc_data.long_name = ncinfo['name']
         nc_data.units = ncinfo['units']
         nc_data.missing_value = ncinfo['missval']

@@ -1,4 +1,4 @@
-from datetime import datetime as dt
+from datetime import datetime
 from datetime import timedelta
 import numpy as np
 import re
@@ -7,7 +7,7 @@ from .util import split_list
 def nbdays_of_month(date):
     # date: string 'yyyy-mm-dd' or 'yyyy-mm'
     frmt = '%Y-%m' if date.count('-') == 1 else '%Y-%m-%d'
-    date = dt.strptime(date, frmt)
+    date = datetime.strptime(date, frmt)
     next_mon = date.replace(month = date.month % 12 + 1, day = 1)
     end_mon = next_mon - timedelta(days = 1)
     return end_mon.day
@@ -22,7 +22,7 @@ def nbdays_of_year(date):
     else:
         frmt = '%Y-%m-%d'
 
-    date = dt.strptime(date, frmt)
+    date = datetime.strptime(date, frmt)
     start = date.replace(month = 1, day = 1)
     end = date.replace(year = date.year + 1, month = 1, day = 1)
     return (end - start).days
@@ -61,7 +61,7 @@ def seq_days_of_dekad(dekad):
 
 def seq_days_of_month(month):
     # month: string 'yyyy-mm'
-    start = dt.strptime(month, '%Y-%m')
+    start = datetime.strptime(month, '%Y-%m')
     nbday = nbdays_of_month(month)
     end = start.replace(day = nbday)
     days_range = range((end - start).days + 1)
@@ -74,8 +74,8 @@ def seq_dekads_of_month(month):
 
 def seq_days_of_year(year):
     # year: string 'yyyy'
-    start = dt.strptime(str(year), '%Y')
-    end = dt.strptime(str(int(year) + 1), '%Y')
+    start = datetime.strptime(str(year), '%Y')
+    end = datetime.strptime(str(int(year) + 1), '%Y')
     days_range = range((end - start).days)
     seq_days = [start + timedelta(days = d) for d in days_range]
     return [t.strftime('%Y-%m-%d') for t in seq_days]
@@ -100,8 +100,8 @@ def seq_days_betwen_dates(start, end):
         nbd = nbdays_of_month(end)
         end = f'{end}-{nbd}'
 
-    start = dt.strptime(start, sfrmt)
-    end = dt.strptime(end, '%Y-%m-%d')
+    start = datetime.strptime(start, sfrmt)
+    end = datetime.strptime(end, '%Y-%m-%d')
     days_range = range((end - start).days + 1)
     seq_days = [start + timedelta(days = d) for d in days_range]
     return [t.strftime('%Y-%m-%d') for t in seq_days]
@@ -123,8 +123,8 @@ def seq_days_betwen_dekads(start, end):
 
 def seq_months_betwen_months(start, end):
     # start, end: string 'yyyy-mm'
-    start = dt.strptime(start, '%Y-%m')
-    end = dt.strptime(end, '%Y-%m')
+    start = datetime.strptime(start, '%Y-%m')
+    end = datetime.strptime(end, '%Y-%m')
 
     months = []
     for yr in range(start.year, end.year + 1, 1):
@@ -167,29 +167,29 @@ def seq_dekads_betwen_dekads(start, end):
 
 def get_ncinfo_date(time_res, date):
     origin = '1970-01-01'
-    dorigin = dt.strptime(origin, '%Y-%m-%d')
+    dorigin = datetime.strptime(origin, '%Y-%m-%d')
 
     if time_res == 'daily':
-        date = dt.strptime(date, '%Y-%m-%d')
+        date = datetime.strptime(date, '%Y-%m-%d')
         diff = date - dorigin
         ret = {'values': diff.days, 'units': f'days since {origin}'}
     elif time_res == 'dekadal':
         dk = int(date.split('-')[2])
-        date = dt.strptime(date, '%Y-%m-%d')
+        date = datetime.strptime(date, '%Y-%m-%d')
         # date = date.replace(day = (dk - 1) * 10 + 1)
         date = date.replace(day = (dk - 1) * 10 + 6)
         diff = date - dorigin
         ret = {'values': diff.days, 'units': f'days since {origin}'}
     elif time_res == 'monthly':
-        date = dt.strptime(date, '%Y-%m')
+        date = datetime.strptime(date, '%Y-%m')
         month = date.month - dorigin.month
         year = date.year - dorigin.year
         diff = year * 12 + month
         ret = {'values': diff, 'units': f'months since {origin}'}
     elif time_res == 'seasonal':
         seas = date.split('_')
-        m1 = dt.strptime(seas[0], '%Y-%m')
-        m2 = dt.strptime(seas[1], '%Y-%m')
+        m1 = datetime.strptime(seas[0], '%Y-%m')
+        m2 = datetime.strptime(seas[1], '%Y-%m')
         month = m2.month - m1.month
         year = m2.year - m1.year
         mf = (year * 12 + month + 1) // 2 + 1
@@ -200,11 +200,19 @@ def get_ncinfo_date(time_res, date):
         diff = year * 12 + month
         ret = {'values': diff, 'units': f'months since {origin}'}
     elif time_res == 'annual':
-        date = dt.strptime(date, '%Y')
+        date = datetime.strptime(date, '%Y')
         month = date.month - dorigin.month
         year = date.year - dorigin.year
         diff = year * 12 + month
         ret = {'values': diff, 'units': f'months since {origin}'}
+    elif time_res == 'daily_season':
+        seas = date.split('_')
+        d1 = datetime.strptime(seas[0], '%Y-%m-%d')
+        d2 = datetime.strptime(seas[1], '%Y-%m-%d')
+        mid = (d2 - d1) / 2
+        day = d1 + mid
+        diff = day - dorigin
+        ret = {'values': diff.days, 'units': f'days since {origin}'}
     else:
         ret = None
 
@@ -352,7 +360,7 @@ def convert_strings_npdatetime64(times, time_res, sep=''):
             continue
 
         frmt = frmt.replace('-', sep)
-        d = dt.strptime(str(f), frmt)
+        d = datetime.strptime(str(f), frmt)
 
         if time_res == 'dekadal':
             dk = int(d.strftime('%d'))
@@ -374,7 +382,7 @@ def extract_ncfiles_datetime(nc_files, nc_format, time_res):
 
     dates = []
     for f in nc_files:
-        d = dt.strptime(f, nc_format)
+        d = datetime.strptime(f, nc_format)
 
         if time_res == 'dekadal':
             dk = int(d.strftime('%d'))

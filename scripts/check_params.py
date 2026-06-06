@@ -1,4 +1,4 @@
-from datetime import datetime as dt
+from datetime import datetime
 
 def checkParamsRequest_rawdata(params):
     dataset = _checkParamsKey(params, 'dataset', ['ALL', 'MON'])
@@ -153,7 +153,7 @@ def checkParamsRequest_climatology(params):
                 val = f'2020-{params["climDate"]}'
                 st = _checkDateDaily('climDate', val)
                 if st: return st
-                date = dt.strptime(val, '%Y-%m-%d')
+                date = datetime.strptime(val, '%Y-%m-%d')
                 date = date.strftime('%m-%d')
                 if date == '02-29':
                     msg = 'There is no climatology for 02-29'
@@ -247,6 +247,116 @@ def checkParamsRequest_analysis(params):
         return {'status': -1, 'message': 'Not implemented yet'}
     else:
         return {'status': -1, 'message': 'Unknown analysis type'}
+
+    return {'status': 0, 'params': params}
+
+def checkParamsRequest_daily_analysis(params):
+    dataset = _checkParamsKey(params, 'dataset', ['ALL', 'MON'])
+    if dataset: return dataset
+
+    if not 'temporalRes' in params:
+        params['temporalRes'] = 'daily'
+
+    if not 'minFrac' in params:
+        params['minFrac'] = 1.0
+
+    params_variable = ['rainfall', 'temperature']
+    variable = _checkParamsKey(params, 'variable', params_variable)
+    if variable: return variable
+
+    if params['variable'] == 'rainfall':
+        params_seas = ['TotRain', 'NumWD', 'NumDD', 'RainInt',
+                       'NumDS', 'NumWS', 'LongDS', 'LongWS']
+        seasParams = _checkParamsKey(params, 'seasParams', params_seas)
+        if seasParams: return seasParams
+
+        params_1 = ['NumWD', 'NumDD', 'RainInt',
+                    'NumDS', 'NumWS', 'LongDS', 'LongWS']
+        if params['seasParams'] in params_1:
+            defThres = _checkParamFloat(params, 'defThres')
+            if defThres['status'] == -1: return defThres
+            params = defThres['params']
+
+        if params['seasParams'] in ['NumDS', 'NumWS']:
+            defSpell = _checkParamInteger(params, 'defSpell')
+            if defSpell['status'] == -1: return defSpell
+            params = defSpell['params']
+    elif params['variable'] == 'temperature':
+        params_seas = ['MeanTemp', 'MinTemp', 'MaxTemp', 'NumCD',
+                       'NumHD', 'CDD', 'HDD', 'GDD']
+        seasParams = _checkParamsKey(params, 'seasParams', params_seas)
+        if seasParams: return seasParams
+
+        if params['seasParams'] in ['NumCD', 'NumHD']:
+            defThres = _checkParamFloat(params, 'defThres')
+            if defThres['status'] == -1: return defThres
+            params = defThres['params']
+
+        if params['seasParams'] in ['CDD', 'HDD', 'GDD']:
+            defTempBase = _checkParamFloat(params, 'defTempBase')
+            if defTempBase['status'] == -1: return defTempBase
+            params = defTempBase['params']
+    else:
+        msg = f"Unknown parameter <variable={params['variable']}>."
+        return {'status': -1, 'message': msg}
+
+    startMonth = _checkParamInteger(params, 'startMonth')
+    if startMonth['status'] == -1: return startMonth
+    params = startMonth['params']
+
+    startDay = _checkParamInteger(params, 'startDay')
+    if startDay['status'] == -1: return startDay
+    params = startDay['params']
+
+    st = _checkDateDailySeason(params['startMonth'], params['startDay'])
+    if st: return st
+
+    endMonth = _checkParamInteger(params, 'endMonth')
+    if endMonth['status'] == -1: return endMonth
+    params = endMonth['params']
+
+    endDay = _checkParamInteger(params, 'endDay')
+    if endDay['status'] == -1: return endDay
+    params = endDay['params']
+
+    et = _checkDateDailySeason(params['endMonth'], params['endDay'])
+    if et: return et
+
+    outF = ['CSV-CDT-Format', 'JSON-Format', 'netCDF-Format', 'CSV-Column-Format']
+    outFormat = _checkParamsKey(params, 'outFormat', outF)
+    if outFormat: return outFormat
+
+    geom_params = _checkExtractSupport(params)
+    if geom_params['ret']: return geom_params['ret']
+    params = geom_params['params']
+
+    params['gridded'] = _isExtractGrid(params)
+
+    ### 
+    if not params['gridded']:
+        startDate = _checkParamsKey(params, 'startDate')
+        if startDate: return startDate
+        endDate = _checkParamsKey(params, 'endDate')
+        if endDate: return endDate
+
+        st = _checkDateYear('startDate', params['startDate'])
+        if st: return st
+        et = _checkDateYear('endDate', params['endDate'])
+        if et: return et
+        params['startDate'] = int(params['startDate'])
+        params['endDate'] = int(params['endDate'])
+    else:
+        Year = _checkParamsKey(params, 'Year')
+        if Year: return Year
+        st = _checkDateYear('Year', params['Year'])
+        if st: return st
+        params['Year'] = int(params['Year'])
+
+    webApp = _checkParamBoolean(params, 'webApp', False)
+    if webApp['status'] == -1: return {'ret': webApp}
+    params = webApp['params']
+
+    params['finalOutput'] = True
 
     return {'status': 0, 'params': params}
 
@@ -386,11 +496,21 @@ def _checkOutFormat(value, out_format):
         if value != out_format: return ret_error
     return None
 
+def _checkDateDailySeason(mon, day):
+    msg = f'Invalid month-day <{mon}-{day}>.'
+    ret_error = {'status': -1, 'message': msg}
+    try:
+        value = f'2024-{mon}-{day}'
+        date = datetime.strptime(value, '%Y-%m-%d')
+        return None
+    except Exception:
+        return ret_error
+
 def _checkDateDaily(key, value):
     msg = f'Invalid parameter <{key}: {value}>.'
     ret_error = {'status': -1, 'message': msg}
     try:
-        date = dt.strptime(value, '%Y-%m-%d')
+        date = datetime.strptime(value, '%Y-%m-%d')
         return None
     except Exception:
         return ret_error
@@ -399,7 +519,7 @@ def _checkDateDekadal(key, value):
     msg = f'Invalid parameter <{key}: {value}>.'
     ret_error = {'status': -1, 'message': msg}
     try:
-        date = dt.strptime(value, '%Y-%m-%d')
+        date = datetime.strptime(value, '%Y-%m-%d')
         if date.day < 0 or date.day > 3: return ret_error
         return None
     except Exception:
@@ -409,7 +529,7 @@ def _checkDateMonthly(key, value):
     msg = f'Invalid parameter <{key}: {value}>.'
     ret_error = {'status': -1, 'message': msg}
     try:
-        date = dt.strptime(value, '%Y-%m')
+        date = datetime.strptime(value, '%Y-%m')
         return None
     except Exception:
         return ret_error
@@ -429,8 +549,8 @@ def _checkDateSeasonal(key, value):
     ret_error = {'status': -1, 'message': msg}
     try:
         seas = value.split('_')
-        s1 = dt.strptime(seas[0], '%Y-%m')
-        s2 = dt.strptime(seas[1], '%Y-%m')
+        s1 = datetime.strptime(seas[0], '%Y-%m')
+        s2 = datetime.strptime(seas[1], '%Y-%m')
         mo = (s2 - s1).days
         if mo < 30 or mo > 365: return ret_error
         return None

@@ -2,6 +2,7 @@ import os
 import re
 import numpy as np
 import xarray as xr
+import pandas as pd
 from functools import partial
 from datetime import datetime
 from .dates import extract_ncfiles_datetime
@@ -149,3 +150,61 @@ def get_zarr_dataset(params):
     zarr_var = os.path.basename(dataset['dir'])
     zarr_path = os.path.join(zarr_dir, zarr_var)
     return xr.open_zarr(zarr_path, chunks=zarr_chunks, consolidated=False)
+
+def get_zarr_daily_dataset(params):
+    datasets = GLOBAL_CONFIG['datasets'][params['dataset']]
+    dataset = datasets['daily']['netcdf']
+    dataset = [dataset[v] for v in params['varNames']]
+    zarr_dir = datasets['daily']['zarr_dir']
+    zarr_chunks = datasets['daily']['chunks']
+    zarr_var = [os.path.basename(d['dir']) for d in dataset]
+    zarr_path = [os.path.join(zarr_dir, v) for v in zarr_var]
+    zarr_data = [
+        xr.open_zarr(
+            path,
+            chunks=zarr_chunks,
+            consolidated=False
+        )
+        for path in zarr_path
+    ]
+    if len(zarr_data) == 2:
+        ds_tmin = zarr_data[0]
+        ds_tmax = zarr_data[1]
+        ds_tmin = ds_tmin.sortby('time')
+        ds_tmax = ds_tmax.sortby('time')
+
+        tmin_name = datasets['variables']['minimum_temperature']
+        tmax_name = datasets['variables']['maximum_temperature']
+
+        time_start = min(
+            ds_tmin.time.min().item(),
+            ds_tmax.time.min().item()
+        )
+        time_end = max(
+            ds_tmin.time.max().item(),
+            ds_tmax.time.max().item()
+        )
+        full_time = pd.date_range(
+            start=pd.Timestamp(time_start),
+            end=pd.Timestamp(time_end),
+            freq='D'
+        )
+        ds_tmin = ds_tmin.reindex(time=full_time)
+        ds_tmax = ds_tmax.reindex(time=full_time)
+
+        eq_lon = ds_tmin.sizes['lon'] == ds_tmax.sizes['lon']
+        eq_lat = ds_tmin.sizes['lat'] == ds_tmax.sizes['lat']
+        if eq_lon and eq_lat:
+            tmax_regrid = ds_tmax[tmax_name]
+        else:
+            tmax_regrid = ds_tmax[tmax_name].interp(
+                lat=ds_tmin['lat'],
+                lon=ds_tmin['lon'],
+                method='linear'
+            )
+            tmax_regrid = tmax_regrid.chunk(ds_tmin[tmin_name].chunksizes)
+
+        tmean = (ds_tmin[tmin_name] + tmax_regrid) / 2
+        return tmean.to_dataset(name='tmean')
+    else:
+        return zarr_data[0]

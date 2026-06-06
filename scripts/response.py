@@ -26,7 +26,11 @@ def response_data_csv(data, ncinfo):
     data = data.filled()
     data = [round(x, 2) for x in data.tolist()]
 
-    data_col = ncinfo['varid']
+    if 'out_varid' in ncinfo:
+        data_col = ncinfo['out_varid']
+    else:
+        data_col = ncinfo['varid']
+
     csv_data = []
     for j in range(len(data)):
         csv_data += [{'Latitude': mlon[j],
@@ -41,10 +45,19 @@ def response_data_json(data, ncinfo):
     date = data['date']
     lon = [round(x, 6) for x in data['lon'].tolist()]
     lat = [round(x, 6) for x in data['lat'].tolist()]
-    dims = {'Latitude': len(lat), 'Longitude': len(lon)}
+    dims = {
+        'Latitude': len(lat),
+        'Longitude': len(lon)
+    }
     miss = data['data'].fill_value.item()
     data = data['data'].filled()
     data = [[round(y, 2) for y in x] for x in data.tolist()]
+
+    if 'out_varid' in ncinfo:
+        varid = ncinfo['out_varid']
+    else:
+        varid = ncinfo['varid']
+
     json_data = {'Date': date,
                  'Latitude': lat,
                  'Longitude': lon,
@@ -52,7 +65,7 @@ def response_data_json(data, ncinfo):
                  'Dimensions': dims,
                  'VariableName': ncinfo['name'],
                  'VariableUnits': ncinfo['units'],
-                 'VariableVarId': ncinfo['out_varid'],
+                 'VariableVarId': varid,
                  'Missing': miss}
     if poly:
         json_data['Name'] = poly

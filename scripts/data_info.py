@@ -11,6 +11,7 @@ def get_datasets_information():
     for d_key in datasets:
         data_info[d_key] = {}
         for t_key, t_val in datasets[d_key].items():
+            if t_key == 'variables': continue
             if not t_val['compute']:
                 zarr_dir = datasets[d_key][t_key]['zarr_dir']
                 zarr_chunks = datasets[d_key][t_key]['chunks']
@@ -66,6 +67,7 @@ def get_datasets_information():
     for d_key in datasets:
         out[d_key] = {}
         for t_key, t_val in datasets[d_key].items():
+            if t_key == 'variables': continue
             out[d_key][t_key] = {}
             for v_key, v_val in t_val['netcdf'].items():
                 tmp = {}
