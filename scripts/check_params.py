@@ -254,11 +254,15 @@ def checkParamsRequest_daily_analysis(params):
     dataset = _checkParamsKey(params, 'dataset', ['ALL', 'MON'])
     if dataset: return dataset
 
-    if not 'temporalRes' in params:
+    if 'temporalRes' in params:
+        if params['temporalRes'] == 'daily':
+            params['temporalRes'] = 'daily'
+    else:
         params['temporalRes'] = 'daily'
 
-    if not 'minFrac' in params:
-        params['minFrac'] = 1.0
+    minFrac = _checkParamFloat(params, 'minFrac', 1.0)
+    if minFrac['status'] == -1: return minFrac
+    params = minFrac['params']
 
     params_variable = ['rainfall', 'temperature']
     variable = _checkParamsKey(params, 'variable', params_variable)
@@ -273,12 +277,12 @@ def checkParamsRequest_daily_analysis(params):
         params_1 = ['NumWD', 'NumDD', 'RainInt',
                     'NumDS', 'NumWS', 'LongDS', 'LongWS']
         if params['seasParams'] in params_1:
-            defThres = _checkParamFloat(params, 'defThres')
+            defThres = _checkParamFloat(params, 'defThres', 1.0)
             if defThres['status'] == -1: return defThres
             params = defThres['params']
 
         if params['seasParams'] in ['NumDS', 'NumWS']:
-            defSpell = _checkParamInteger(params, 'defSpell')
+            defSpell = _checkParamInteger(params, 'defSpell', 7)
             if defSpell['status'] == -1: return defSpell
             params = defSpell['params']
     elif params['variable'] == 'temperature':
@@ -288,12 +292,13 @@ def checkParamsRequest_daily_analysis(params):
         if seasParams: return seasParams
 
         if params['seasParams'] in ['NumCD', 'NumHD']:
-            defThres = _checkParamFloat(params, 'defThres')
+            defThres = _checkParamFloat(params, 'defThres', 20.0)
             if defThres['status'] == -1: return defThres
             params = defThres['params']
 
         if params['seasParams'] in ['CDD', 'HDD', 'GDD']:
-            defTempBase = _checkParamFloat(params, 'defTempBase')
+            tbase = 10.0 if params['seasParams'] == 'GDD' else 18.0
+            defTempBase = _checkParamFloat(params, 'defTempBase', tbase)
             if defTempBase['status'] == -1: return defTempBase
             params = defTempBase['params']
     else:
@@ -332,7 +337,19 @@ def checkParamsRequest_daily_analysis(params):
 
     params['gridded'] = _isExtractGrid(params)
 
-    ### 
+    webApp = _checkParamBoolean(params, 'webApp', False)
+    if webApp['status'] == -1: return {'ret': webApp}
+    params = webApp['params']
+
+    params['finalOutput'] = True
+
+    return {'status': 0, 'params': params}
+
+def checkParamsRequest_analysis_dailydata(params):
+    checkPars = checkParamsRequest_daily_analysis(params)
+    if checkPars['status'] == -1: return checkPars
+    params = checkPars['params']
+
     if not params['gridded']:
         startDate = _checkParamsKey(params, 'startDate')
         if startDate: return startDate
@@ -352,11 +369,58 @@ def checkParamsRequest_daily_analysis(params):
         if st: return st
         params['Year'] = int(params['Year'])
 
-    webApp = _checkParamBoolean(params, 'webApp', False)
-    if webApp['status'] == -1: return {'ret': webApp}
-    params = webApp['params']
+    return {'status': 0, 'params': params}
 
-    params['finalOutput'] = True
+def checkParamsRequest_analysis_dailyclim(params):
+    checkPars = checkParamsRequest_daily_analysis(params)
+    if checkPars['status'] == -1: return checkPars
+    params = checkPars['params']
+
+    if 'startYear' in params:
+        startYear = _checkDateYear('startYear', params['startYear'])
+        if startYear: return startYear
+    else:
+        params['startYear'] = 1991
+
+    if 'endYear' in params:
+        endYear = _checkDateYear('endYear', params['endYear'])
+        if endYear: return endYear
+    else:
+        params['endYear'] = 2020
+
+    minYear = _checkParamInteger(params, 'minYear', 30)
+    if minYear['status'] == -1: return minYear
+    params = minYear['params']
+
+    seasStatsF = ['mean', 'median', 'stdev', 'cv',
+                  'mean-stdev', 'probExc', 'probNoExc']
+    seasStats = _checkParamsKey(params, 'seasStats', seasStatsF)
+    if seasStats: return seasStats
+
+    if params['seasStats'] == 'mean-stdev':
+        if params['outFormat'] == 'CSV-CDT-Format':
+            msg = 'The mean and stdev combined can not be computed CDT for output format.'
+            return {'status': -1, 'message': msg}
+
+    if params['seasStats'] == 'probExc' or params['seasStats'] == 'probNoExc':
+        probaThres = _checkParamFloat(params, 'probaThres')
+        if probaThres['status'] == -1: return probaThres
+        params = probaThres['params']
+
+        if 'probaUnit' in params:
+            probaUnit = _checkParamsKey(
+                params, 'probaUnit', ['perc', 'frac']
+            )
+            if probaUnit: return probaUnit
+        else:
+            params['probaUnit'] = 'perc'
+
+    return {'status': 0, 'params': params}
+
+def checkParamsRequest_analysis_dailyanom(params):
+    checkPars = checkParamsRequest_daily_analysis(params)
+    if checkPars['status'] == -1: return checkPars
+    params = checkPars['params']
 
     return {'status': 0, 'params': params}
 
@@ -622,15 +686,25 @@ def _checkParamInteger(params, key, default=None):
         except Exception:
             return ret_error
 
-def _checkParamFloat(params, key):
+def _checkParamFloat(params, key, default=None):
     ret_error = {'status': -1, 'message': None}
     if not key in params:
-        ret_error['message'] = f'No parameter <{key}> found.'
-        return ret_error
+        if default is not None:
+            params[key] = default
+            return {'status': 0, 'params': params}
+        else:
+            ret_error['message'] = f'No parameter <{key}> found.'
+            return ret_error
     else:
         try:
-            params[key] = float(params[key])
-            return {'status': 0, 'params': params}
+            if isinstance(params[key], str):
+                params[key] = float(params[key])
+                return {'status': 0, 'params': params}
+            else:
+                if not isinstance(params[key], (int, float)):
+                    return ret_error
+                else:
+                    return {'status': 0, 'params': params}
         except Exception:
             ret_error['message'] = f'Invalid parameter <{key}: {value}>.'
             return ret_error

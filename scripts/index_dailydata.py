@@ -55,3 +55,14 @@ def get_daily_index_season(times, start_month, start_day,
         'index': season_indices,
         'length': season_days
     }
+
+def year_daily_index_season(tindex, year):
+    years = np.array([
+        k for k in tindex['index'].keys()
+    ])
+    if not year in years:
+        msg = f'No data for year: {year}'
+        return {'status': -1, 'message': msg}
+
+    return None
+

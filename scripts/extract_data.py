@@ -11,16 +11,25 @@ from .dates import format_output_date, get_ncinfo_date
 from .index_time import get_index_dates_dataset
 from .zarrdata import get_zarr_dataset
 from .geojson import get_user_geojson, geojson_polygons_points
-from .netcdf import get_netcdf_data, aggregate_netcdf_data, extract_netcdf_bbox
+from .netcdf import (get_netcdf_data,
+                     aggregate_netcdf_data,
+                     extract_netcdf_bbox)
 
 def extract_rectangular_grid_data(params, dataset, filename, bbox):
     if dataset['compute']:
-        out = aggregate_netcdf_data(params, dataset, bbox)
+        out = aggregate_netcdf_data(
+            params, dataset, bbox
+        )
         if out['status'] == -1: return out
         out = out['data']
     else:
-        out = get_netcdf_data(params['dataset'], params['temporalRes'],
-                              params['variable'], params['Date'], bbox)
+        out = get_netcdf_data(
+            params['dataset'],
+            params['temporalRes'],
+            params['variable'],
+            params['Date'],
+            bbox
+        )
         if out is None:
             msg = f'File {filename} not found.'
             return {'status': -1, 'message': msg}
@@ -46,39 +55,68 @@ def extract_polygons_grid_data(params, dataset, filename):
             if out['status'] == -1: return out
             out = out['data']
         else:
-            out = get_netcdf_data(params['dataset'], params['temporalRes'],
-                                  params['variable'], params['Date'])
+            out = get_netcdf_data(
+                params['dataset'],
+                params['temporalRes'],
+                params['variable'],
+                params['Date']
+            )
             if out is None:
                 msg = f'File {filename} not found.'
                 return {'status': -1, 'message': msg}
 
         out_data = []
         for poly in shpObj['polys']:
-            bbox = format_bbox_polygons(shpObj['bbox'], params['shpField'], poly)
+            bbox = format_bbox_polygons(
+                shpObj['bbox'],
+                params['shpField'],
+                poly
+            )
             ret = extract_netcdf_bbox(out, bbox)
-            ext = extract_polygons_griddata(ret, shpObj['shp'], params['shpField'], poly)
-            # poly_name = re.sub(r'[^a-zA-Z0-9]', '', poly)
-            # resfile = f'{poly_name}_{filename}'
-            # ncdata += [{'data': ext, 'poly': poly, 'name': resfile}]
+            ext = extract_polygons_griddata(
+                ret,
+                shpObj['shp'],
+                params['shpField'],
+                poly
+            )
             ext['date'] = params['Date']
             out_data += [{'data': ext, 'poly': poly}]
     else:
-        bbox = format_bbox_polygons(shpObj['bbox'], params['shpField'], shpObj['polys'])
+        bbox = format_bbox_polygons(
+            shpObj['bbox'],
+            params['shpField'],
+            shpObj['polys']
+        )
 
         if dataset['compute']:
-            out = aggregate_netcdf_data(params, dataset, bbox)
+            out = aggregate_netcdf_data(
+                params, dataset, bbox
+            )
             if out['status'] == -1: return out
             out = out['data']
         else:
-            out = get_netcdf_data(params['dataset'], params['temporalRes'],
-                                  params['variable'], params['Date'], bbox)
+            out = get_netcdf_data(
+                params['dataset'],
+                params['temporalRes'],
+                params['variable'],
+                params['Date'],
+                bbox
+            )
             if out is None:
                 msg = f'File {filename} not found.'
                 return {'status': -1, 'message': msg}
 
-        out = extract_polygons_griddata(out, shpObj['shp'], params['shpField'], shpObj['polys'])
+        out = extract_polygons_griddata(
+            out,
+            shpObj['shp'],
+            params['shpField'],
+            shpObj['polys']
+        )
         out['date'] = params['Date']
-        out_data = [{'data': out, 'poly': shpObj['polys']}]
+        out_data = [{
+            'data': out,
+            'poly': shpObj['polys']
+        }]
 
     return {'status': 0, 'data': out_data}
 
@@ -104,28 +142,63 @@ def extract_rectangle_point_data(params, dataset, bbox):
         nl = tindex['length']
         dates = tindex['dates']
         minfrac = float(dataset['minfrac'])
-        frac = [len(index[j])/nl[j] for j in range(len(index))]
+        frac = [
+            len(index[j])/nl[j]
+            for j in range(len(index))
+        ]
         if all(x == 0 for x in frac):
             msg = f'No data found for the period {period}'
             return {'status': -1, 'message': msg}
         bfrac = [x < minfrac for x in frac]
         if all(bfrac):
-            msg = f'Not enough {tindex["input_res"]} data to compute {params["temporalRes"]} data.'
+            m1 = tindex['input_res']
+            m2 = params['temporalRes']
+            msg = f'Not enough {m1} data to compute {m2} data.'
             return {'status': -1, 'message': msg}
-        index = [index[j] for j in range(len(bfrac)) if not bfrac[j]]
-        nl = np.array([nl[j] for j in range(len(bfrac)) if not bfrac[j]])
-        dates = [dates[j] for j in range(len(bfrac)) if not bfrac[j]]
+        index = [
+            index[j]
+            for j in range(len(bfrac))
+            if not bfrac[j]
+        ]
+        nl = np.array([
+            nl[j]
+            for j in range(len(bfrac))
+            if not bfrac[j]
+        ])
+        dates = [
+            dates[j]
+            for j in range(len(bfrac))
+            if not bfrac[j]
+        ]
 
-        it_flat = [i.item() for it in index for i in it]
+        it_flat = [
+            i.item()
+            for it in index
+            for i in it
+        ]
         it_len = [len(it) for it in index]
         it_fill = nl - it_len
         it_len = np.cumsum(it_len)
 
-        xr_ds = xr_data[params['variable']].isel(time=it_flat, lat=sindex['lat'], lon=sindex['lon'])
-        val = xr_ds.mean(dim=['lon', 'lat'], skipna=True)
+        xr_ds = xr_data[params['variable']]
+        xr_ds = xr_ds.isel(
+            time=it_flat,
+            lat=sindex['lat'],
+            lon=sindex['lon']
+        )
+        val = xr_ds.mean(
+            dim=['lon', 'lat'],
+            skipna=True
+        )
         val = np.split(val.values, it_len)[:len(index)]
-        val = [np.append(v, np.repeat(np.nan, it_fill[i])) for i, v in enumerate(val)]
-        nna = np.array([np.count_nonzero(~np.isnan(x)) for x in val])
+        val = [
+            np.append(v, np.repeat(np.nan, it_fill[i]))
+            for i, v in enumerate(val)
+        ]
+        nna = np.array([
+            np.count_nonzero(~np.isnan(x))
+            for x in val
+        ])
 
         if np.all(nna/nl < minfrac):
             val = np.repeat(dataset['missval'], len(index))
@@ -143,14 +216,27 @@ def extract_rectangle_point_data(params, dataset, bbox):
             else:
                 val = np.repeat(dataset['missval'], len(index))
     else:
-        tindex = get_index_dates_dataset(xr_coords, params, params['temporalRes'], dataset['compute'])
+        tindex = get_index_dates_dataset(
+            xr_coords,
+            params,
+            params['temporalRes'],
+            dataset['compute']
+        )
         if tindex['status'] == -1: return tindex
 
         index = tindex['index']
         dates = tindex['dates']
 
-        xr_ds = xr_data[params['variable']].isel(time=index, lat=sindex['lat'], lon=sindex['lon'])
-        val = xr_ds.mean(dim=['lon', 'lat'], skipna=True)
+        xr_ds = xr_data[params['variable']]
+        xr_ds = xr_ds.isel(
+            time=index,
+            lat=sindex['lat'],
+            lon=sindex['lon']
+        )
+        val = xr_ds.mean(
+            dim=['lon', 'lat'],
+            skipna=True
+        )
         val = val.values
         val[np.isnan(val)] = dataset['missval']
 
@@ -158,9 +244,18 @@ def extract_rectangle_point_data(params, dataset, bbox):
     out = out.map(lambda x: f'{x:.2f}')
     clon = round((bbox['minLon'] + bbox['maxLon'])/2, 6)
     clat = round((bbox['minLat'] + bbox['maxLat'])/2, 6)
-    coords = pd.DataFrame({'loc': ['Rectangle'], 'lon': [clon], 'lat': [clat]})
+    coords = pd.DataFrame({
+        'loc': ['Rectangle'],
+        'lon': [clon],
+        'lat': [clat]
+    })
 
-    return {'status': 0, 'data': out, 'dates': dates, 'coords': coords}
+    return {
+            'status': 0,
+            'data': out,
+            'dates': dates,
+            'coords': coords
+        }
 
 def extract_polygons_points_data(params, dataset):
     shpObj = get_shapefiles_data(params)
@@ -173,26 +268,55 @@ def extract_polygons_points_data(params, dataset):
     xr_coords = get_coords_dataset(xr_data)
     sindex = []
     for poly in shpObj['polys']:
-        sindex += [create_geom_polygons(xr_coords, shpObj['shp'],
-                                        params['shpField'], poly)]
+        sindex += [
+                    create_geom_polygons(
+                        xr_coords,
+                        shpObj['shp'],
+                        params['shpField'],
+                        poly
+                    )
+                ]
 
-    ret = extract_polygons_points(params, dataset, xr_data, xr_coords, sindex)
+    ret = extract_polygons_points(
+        params,
+        dataset,
+        xr_data,
+        xr_coords,
+        sindex
+    )
     if ret['status'] == -1: return ret
 
-    ret['coords'] = table_coords_polygons(shpObj['shp'], params['shpField'], shpObj['polys'])
+    ret['coords'] = table_coords_polygons(
+        shpObj['shp'],
+        params['shpField'],
+        shpObj['polys']
+    )
     return ret
 
 def extract_multipoints_data(params, dataset):
     if params['pointsSource'] == 'user':
-        csvdata = read_user_csv_mpoints(params['pointsFile'], params['user']['username'])
+        csvdata = read_user_csv_mpoints(
+            params['pointsFile'],
+            params['user']['username']
+        )
     else:
         csvdata = format_list_mpoints_dict(params['pointsList'])
 
     xr_data = get_zarr_dataset(params)
     xr_coords = get_coords_dataset(xr_data)
-    # sindex = create_geom_mpoints(xr_coords, csvdata, params['padLon'], params['padLat'])
-    sindex = create_geom_mpoints_bbox(xr_coords, csvdata, params['padLon'], params['padLat'])
-    ret = extract_multipoints(params, dataset, xr_data, xr_coords, sindex)
+    sindex = create_geom_mpoints_bbox(
+        xr_coords,
+        csvdata,
+        params['padLon'],
+        params['padLat']
+    )
+    ret = extract_multipoints(
+        params,
+        dataset,
+        xr_data,
+        xr_coords,
+        sindex
+    )
     if ret['status'] == -1: return ret
 
     ret['coords'] = csvdata
@@ -200,7 +324,10 @@ def extract_multipoints_data(params, dataset):
 
 def extract_geojson_points_data(params, dataset):
     if params['geojsonSource'] == 'user':
-        json_data = get_user_geojson(params['geojsonFile'], params['user']['username'])
+        json_data = get_user_geojson(
+            params['geojsonFile'],
+            params['user']['username']
+        )
         if json_data['status'] == -1: return json_data
         json_data = json.loads(json_data['geojson'])
     else:
@@ -220,25 +347,48 @@ def extract_geojson_points_data(params, dataset):
 
     if any(pls):
         geom_polygons = geojson[pls]
-        name = geom_polygons[params['geojsonField']].reset_index(drop=True)
-        gt = pd.DataFrame(data={'type': ['polygon' for i in name]})
-        crds = geom_polygons.centroid.get_coordinates().reset_index(drop=True)
-        ncrds = dict(zip(crds.columns.tolist(), ['lon', 'lat']))
+        name = geom_polygons[params['geojsonField']]
+        name = name.reset_index(drop=True)
+        gt = pd.DataFrame(
+            data={
+                'type': ['polygon' for i in name]
+            }
+        )
+        crds = geom_polygons.centroid.get_coordinates()
+        crds = crds.reset_index(drop=True)
+        ncrds = dict(
+            zip(
+                crds.columns.tolist(),
+                ['lon', 'lat']
+            )
+        )
         crds = crds.rename(columns=ncrds)
-        info_polygons = pd.concat([name, crds, gt], axis=1)
+        info_polygons = pd.concat(
+            [name, crds, gt],
+            axis=1
+        )
 
         npolys = name.tolist()
         params['Poly'] = remove_duplicates_list(npolys)
-        # bbox_df = get_bbox_polygons(geom_polygons, params['geojsonField'])
-        # npolys = bbox_df[params['geojsonField']].tolist()
-        # params['Poly'] = remove_duplicates_list(npolys)
-
         geom_polygons.crs = 'EPSG:4326'
+
         sindex = []
         for poly in params['Poly']:
-            sindex += [create_geom_polygons(xr_coords, geom_polygons,
-                                            params['geojsonField'], poly)]
-        ret = extract_polygons_points(params, dataset, xr_data, xr_coords, sindex)
+            sindex += [
+                        create_geom_polygons(
+                            xr_coords,
+                            geom_polygons,
+                            params['geojsonField'],
+                            poly
+                        )
+                    ]
+        ret = extract_polygons_points(
+            params,
+            dataset,
+            xr_data,
+            xr_coords,
+            sindex
+        )
         if ret['status'] == -1: return ret
 
         out_polygons = ret['data']
@@ -246,24 +396,52 @@ def extract_geojson_points_data(params, dataset):
 
     if any(pts):
         geom_points = geojson[pts]
-        name = geom_points[params['geojsonField']].reset_index(drop=True)
-        gt = pd.DataFrame(data={'type': ['point' for i in name]})
-        crds = geom_points.get_coordinates().reset_index(drop=True)
-        ncrds = dict(zip(crds.columns.tolist(), ['lon', 'lat']))
+        name = geom_points[params['geojsonField']]
+        name = name.reset_index(drop=True)
+        gt = pd.DataFrame(
+            data={
+                'type': ['point' for i in name]
+            }
+        )
+        crds = geom_points.get_coordinates()
+        crds = crds.reset_index(drop=True)
+        ncrds = dict(
+            zip(
+                crds.columns.tolist(),
+                ['lon', 'lat']
+            )
+        )
         crds = crds.rename(columns=ncrds)
-        info_points = pd.concat([name, crds, gt], axis=1)
+        info_points = pd.concat(
+            [name, crds, gt],
+            axis=1
+        )
 
-        sindex = create_geom_mpoints_bbox(xr_coords, info_points, 0, 0)
-        ret = extract_multipoints(params, dataset, xr_data, xr_coords, sindex)
+        sindex = create_geom_mpoints_bbox(
+            xr_coords, info_points, 0, 0
+        )
+        ret = extract_multipoints(
+            params,
+            dataset,
+            xr_data,
+            xr_coords,
+            sindex
+        )
         if ret['status'] == -1: return ret
 
         out_points = ret['data']
         dates_points = ret['dates']
 
     if any(pls) and any(pts):
-        out = pd.concat([out_polygons, out_points], axis=1)
+        out = pd.concat(
+            [out_polygons, out_points],
+            axis=1
+        )
         out = out.T.reset_index(drop=True).T
-        crds = pd.concat([info_polygons, info_points], axis=0)
+        crds = pd.concat(
+            [info_polygons, info_points],
+            axis=0
+        )
         crds = crds.reset_index(drop=True)
         dates = dates_points
     elif any(pls):
@@ -282,7 +460,12 @@ def extract_geojson_points_data(params, dataset):
     crds['lat'] = crds['lat'].round(6)
     crds.columns = ['loc', 'lon', 'lat', 'type']
 
-    return {'status': 0, 'data': out, 'dates': dates, 'coords': crds}
+    return {
+            'status': 0,
+            'data': out,
+            'dates': dates,
+            'coords': crds
+        }
 
 def extract_polygons_points(params, dataset, xr_data, xr_coords, sindex):
     period = format_output_date(params)
@@ -300,21 +483,42 @@ def extract_polygons_points(params, dataset, xr_data, xr_coords, sindex):
         dates = tindex['dates']
         minfrac = float(dataset['minfrac'])
 
-        frac = [len(index[j])/nl[j] for j in range(len(index))]
+        frac = [
+            len(index[j])/nl[j]
+            for j in range(len(index))
+        ]
         if all(x == 0 for x in frac):
             msg = f'No data found for the period {period}'
             return {'status': -1, 'message': msg}
 
         bfrac = [x < minfrac for x in frac]
         if all(bfrac):
-            msg = f'Not enough {tindex["input_res"]} data to compute {params["temporalRes"]} data.'
+            m1 = tindex['input_res']
+            m2 = params['temporalRes']
+            msg = f'Not enough {m1} data to compute {m2} data.'
             return {'status': -1, 'message': msg}
 
-        index = [index[j] for j in range(len(bfrac)) if not bfrac[j]]
-        nl = np.array([nl[j] for j in range(len(bfrac)) if not bfrac[j]])
-        dates = [dates[j] for j in range(len(bfrac)) if not bfrac[j]]
+        index = [
+            index[j]
+            for j in range(len(bfrac))
+            if not bfrac[j]
+        ]
+        nl = np.array([
+            nl[j]
+            for j in range(len(bfrac))
+            if not bfrac[j]
+        ])
+        dates = [
+            dates[j]
+            for j in range(len(bfrac))
+            if not bfrac[j]
+        ]
 
-        it_flat = [i.item() for it in index for i in it]
+        it_flat = [
+            i.item()
+            for it in index
+            for i in it
+        ]
         it_len = [len(it) for it in index]
         it_fill = nl - it_len
         it_len = np.cumsum(it_len)
@@ -322,16 +526,35 @@ def extract_polygons_points(params, dataset, xr_data, xr_coords, sindex):
         out = []
         for s in sindex:
             if len(s[0]) == 0:
-                out += [np.repeat(dataset['missval'], len(index))]
+                out += [
+                    np.repeat(
+                        dataset['missval'],
+                        len(index)
+                    )
+                ]
                 continue
 
             ix = xr.DataArray(s[1], dims='points')
             iy = xr.DataArray(s[0], dims='points')
-            xr_ds = xr_data[params['variable']].isel(time=it_flat, lat=iy, lon=ix)
-            val = xr_ds.mean(dim='points', skipna=True)
+            xr_ds = xr_data[params['variable']]
+            xr_ds = xr_ds.isel(
+                time=it_flat,
+                lat=iy,
+                lon=ix
+            )
+            val = xr_ds.mean(
+                dim='points',
+                skipna=True
+            )
             val = np.split(val.values, it_len)[:len(index)]
-            val = [np.append(v, np.repeat(np.nan, it_fill[i])) for i, v in enumerate(val)]
-            nna = np.array([np.count_nonzero(~np.isnan(x)) for x in val])
+            val = [
+                np.append(v, np.repeat(np.nan, it_fill[i]))
+                for i, v in enumerate(val)
+            ]
+            nna = np.array([
+                np.count_nonzero(~np.isnan(x))
+                for x in val
+            ])
 
             if np.all(nna/nl < minfrac):
                 val = np.repeat(dataset['missval'], len(index))
@@ -363,21 +586,35 @@ def extract_polygons_points(params, dataset, xr_data, xr_coords, sindex):
         out = []
         for s in sindex:
             if len(s[0]) == 0:
-                val = np.repeat(dataset['missval'], len(index))
+                val = np.repeat(
+                    dataset['missval'], len(index)
+                )
                 out += [val]
                 continue
 
             ix = xr.DataArray(s[1], dims='points')
             iy = xr.DataArray(s[0], dims='points')
-            xr_ds = xr_data[params['variable']].isel(time=index, lat=iy, lon=ix)
-            val = xr_ds.mean(dim='points', skipna=True)
+            xr_ds = xr_data[params['variable']]
+            xr_ds = xr_ds.isel(
+                time=index,
+                lat=iy,
+                lon=ix
+            )
+            val = xr_ds.mean(
+                dim='points',
+                skipna=True
+            )
             val = val.values
             val[np.isnan(val)] = dataset['missval']
             out += [val]
 
     out = pd.DataFrame(out).transpose()
-    out = out.map(lambda x: f"{x:.2f}")
-    return {'status': 0, 'data': out, 'dates': dates}
+    out = out.map(lambda x: f'{x:.2f}')
+    return {
+            'status': 0,
+            'data': out,
+            'dates': dates
+        }
 
 def extract_multipoints(params, dataset, xr_data, xr_coords, sindex):
     period = format_output_date(params)
@@ -395,21 +632,42 @@ def extract_multipoints(params, dataset, xr_data, xr_coords, sindex):
         dates = tindex['dates']
         minfrac = float(dataset['minfrac'])
 
-        frac = [len(index[j])/nl[j] for j in range(len(index))]
+        frac = [
+            len(index[j])/nl[j]
+            for j in range(len(index))
+        ]
         if all(x == 0 for x in frac):
             msg = f'No data found for the period {period}'
             return {'status': -1, 'message': msg}
 
         bfrac = [x < minfrac for x in frac]
         if all(bfrac):
-            msg = f'Not enough {tindex["input_res"]} data to compute {params["temporalRes"]} data.'
+            m1 = tindex['input_res']
+            m2 = params['temporalRes']
+            msg = f'Not enough {m1} data to compute {m2} data.'
             return {'status': -1, 'message': msg}
 
-        index = [index[j] for j in range(len(bfrac)) if not bfrac[j]]
-        nl = np.array([nl[j] for j in range(len(bfrac)) if not bfrac[j]])
-        dates = [dates[j] for j in range(len(bfrac)) if not bfrac[j]]
+        index = [
+            index[j]
+            for j in range(len(bfrac))
+            if not bfrac[j]
+        ]
+        nl = np.array([
+            nl[j]
+            for j in range(len(bfrac))
+            if not bfrac[j]
+        ])
+        dates = [
+            dates[j]
+            for j in range(len(bfrac))
+            if not bfrac[j]
+        ]
 
-        it_flat = [i.item() for it in index for i in it]
+        it_flat = [
+            i.item()
+            for it in index
+            for i in it
+        ]
         it_len = [len(it) for it in index]
         it_fill = nl - it_len
         it_len = np.cumsum(it_len)
@@ -417,23 +675,36 @@ def extract_multipoints(params, dataset, xr_data, xr_coords, sindex):
         out = []
         for s in sindex:
             if len(s[0]) == 0:
-                out += [np.repeat(dataset['missval'], len(index))]
+                val = np.repeat(
+                    dataset['missval'], len(index)
+                )
+                out += [val]
                 continue
 
-            # ix = xr.DataArray(s[0], dims='points')
-            # iy = xr.DataArray(s[1], dims='points')
-            # xr_ds = xr_data[params['variable']].isel(time=it_flat, lat=iy, lon=ix)
-            # val = xr_ds.mean(dim='points', skipna=True)
-            # 
-            xr_ds = xr_data[params['variable']].isel(time=it_flat, lat=s[1], lon=s[0])
-            val = xr_ds.mean(dim=['lon', 'lat'], skipna=True)
-            # 
+            xr_ds = xr_data[params['variable']]
+            xr_ds = xr_ds.isel(
+                time=it_flat,
+                lat=s[1],
+                lon=s[0]
+            )
+            val = xr_ds.mean(
+                dim=['lon', 'lat'],
+                skipna=True
+            )
             val = np.split(val.values, it_len)[:len(index)]
-            val = [np.append(v, np.repeat(np.nan, it_fill[i])) for i, v in enumerate(val)]
-            nna = np.array([np.count_nonzero(~np.isnan(x)) for x in val])
+            val = [
+                np.append(v, np.repeat(np.nan, it_fill[i]))
+                for i, v in enumerate(val)
+            ]
+            nna = np.array([
+                np.count_nonzero(~np.isnan(x))
+                for x in val
+            ])
 
             if np.all(nna/nl < minfrac):
-                val = np.repeat(dataset['missval'], len(index))
+                val = np.repeat(
+                    dataset['missval'], len(index)
+                )
             else:
                 if dataset['function'] == 'sum':
                     try:
@@ -462,22 +733,31 @@ def extract_multipoints(params, dataset, xr_data, xr_coords, sindex):
         out = []
         for s in sindex:
             if len(s[0]) == 0:
-                val = np.repeat(dataset['missval'], len(index))
+                val = np.repeat(
+                    dataset['missval'], len(index)
+                )
                 out += [val]
                 continue
 
-            # ix = xr.DataArray(s[0], dims='points')
-            # iy = xr.DataArray(s[1], dims='points')
-            # xr_ds = xr_data[params['variable']].isel(time=index, lat=iy, lon=ix)
-            # val = xr_ds.mean(dim='points', skipna=True)
-            # 
-            xr_ds = xr_data[params['variable']].isel(time=index, lat=s[1], lon=s[0])
-            val = xr_ds.mean(dim=['lon', 'lat'], skipna=True)
-            # 
+            xr_ds = xr_data[params['variable']]
+            xr_ds = xr_ds.isel(
+                time=index,
+                lat=s[1],
+                lon=s[0]
+            )
+            val = xr_ds.mean(
+                dim=['lon', 'lat'],
+                skipna=True
+            )
             val = val.values
             val[np.isnan(val)] = dataset['missval']
             out += [val]
 
     out = pd.DataFrame(out).transpose()
-    out = out.map(lambda x: f"{x:.2f}")
-    return {'status': 0, 'data': out, 'dates': dates}
+    out = out.map(lambda x: f'{x:.2f}')
+    return {
+            'status': 0,
+            'data': out,
+            'dates': dates
+        }
+

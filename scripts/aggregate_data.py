@@ -3,12 +3,17 @@ import xarray as xr
 import pandas as pd
 from scipy.stats import t as student_t
 
-def aggregate_climatology(xr_ds, clim_fun, min_year,
-                          percentile=0.95,
-                          frequency_oper='>=',
-                          frequency_thres=1.0,
-                          proba_thres=10,
-                          trend_unit='perYear'):
+def aggregate_climatology(
+    xr_ds,
+    clim_fun,
+    min_year,
+    percentile=0.95,
+    frequency_oper='>=',
+    frequency_thres=1.0,
+    proba_thres=10,
+    proba_unit='perc',
+    trend_unit='perYear',
+):
     np.seterr(divide='ignore', invalid='ignore')
     nomiss = xr_ds.notnull().sum(dim='y')
 
@@ -28,13 +33,13 @@ def aggregate_climatology(xr_ds, clim_fun, min_year,
         mn = xr_ds.mean(dim='y', skipna=True)
         std = xr_ds.std(dim='y', skipna=True)
         clim = (std / mn) * 100
-        rzr = np.logical_and(mn != 0., clim.notnull())
-        clim = clim.where(rzr, 0.)
+        rzr = np.logical_and(mn != 0.0, clim.notnull())
+        clim = clim.where(rzr, 0.0)
     elif clim_fun == 'frequency':
         mask_f = f'xr_ds{frequency_oper}{frequency_thres}'
         mask = eval(mask_f)
         mask = mask.sum(dim='y', skipna=True)
-        clim = 100 * mask/nomiss
+        clim = 100 * mask / nomiss
     elif clim_fun == 'mean-stdev':
         mn = xr_ds.mean(dim='y', skipna=True)
         sd = xr_ds.std(dim='y', skipna=True)
@@ -44,19 +49,19 @@ def aggregate_climatology(xr_ds, clim_fun, min_year,
                 [0, 1],
                 dims="statistics",
                 name="statistics",
-                attrs={
-                    "long_name": "statistics",
-                    "labels": "0=mean, 1=stdev"
-                }
-            )
+                attrs={"long_name": "statistics", "labels": "0=mean, 1=stdev"},
+            ),
         )
     elif clim_fun == 'probExc':
-        # clim = 100 * (xr_ds > proba_thres).mean(dim='y')
-        clim = probability_exceeding(xr_ds, proba_thres)
+        # clim = probability_exceeding0(xr_ds, proba_thres, proba_unit)
+        clim = probability_exceeding(xr_ds, proba_thres, proba_unit)
     elif clim_fun == 'probNoExc':
-        # clim = 100 * (xr_ds > proba_thres).mean(dim='y')
-        clim = probability_exceeding(xr_ds, proba_thres)
-        clim = 100 - clim
+        # clim = probability_exceeding0(xr_ds, proba_thres, proba_unit)
+        clim = probability_exceeding(xr_ds, proba_thres, proba_unit)
+        if proba_unit == 'perc':
+            clim = 100.0 - clim
+        else:
+            clim = 1.0 - clim
     elif clim_fun == 'trend':
         clim = regression_vector(xr_ds, min_year)
         if trend_unit == 'overPeriod':
@@ -72,8 +77,10 @@ def aggregate_climatology(xr_ds, clim_fun, min_year,
 
     return clim.where(nomiss >= min_year, np.nan)
 
-def aggregate_timeSeries(xr_ds, aggr_fun, aggr_len, min_frac,
-                         count_oper='>=', count_thres=1.0):
+def aggregate_timeSeries(
+    xr_ds, aggr_fun, aggr_len, min_frac,
+    count_oper='>=', count_thres=1.0
+):
     if aggr_fun == 'sum':
         val = xr_ds.sum(dim='time', skipna=True)
     elif aggr_fun == 'mean':
@@ -90,16 +97,28 @@ def aggregate_timeSeries(xr_ds, aggr_fun, aggr_len, min_frac,
         val = mask.sum(dim='time', skipna=True)
     else:
         if len(xr_ds.shape) == 3:
-            val = xr_ds[0,:,:]
-            val[:,:] = np.nan
+            val = xr_ds[0, :, :]
+            val[:, :] = np.nan
         else:
             val = np.nan
 
     mfrac = xr_ds.isnull().sum(dim='time') / aggr_len
     return val.where(mfrac < min_frac, np.nan)
 
-def probability_exceeding(xr_ds, thres):
+def probability_exceeding0(xr_ds, thres, unit='perc'):
+    if unit == 'perc':
+        mul = 100.0
+    else:
+        mul = 1.0
+
+    return mul * (xr_ds > thres).mean(dim='y')
+
+def probability_exceeding(xr_ds, thres, unit='perc'):
     xr_ds = xr_ds.chunk({'y': -1})
+    if unit == 'perc':
+        mul = 100.0
+    else:
+        mul = 1.0
 
     def _prob_vec(v):
         v = v[~np.isnan(v)]
@@ -124,9 +143,9 @@ def probability_exceeding(xr_ds, thres):
 
             x1 = v[0] - step
             if thres < x1:
-                return 100.0
+                return mul
 
-            return 100.0 * (
+            return mul * (
                 pr[0] +
                 (thres - v[0]) * (1.0 - pr[0]) / (x1 - v[0])
             )
@@ -141,26 +160,26 @@ def probability_exceeding(xr_ds, thres):
             if thres > x0:
                 return 0.0
 
-            return 100.0 * (
+            return mul * (
                 pr[-1] +
                 (thres - v[-1]) * (-pr[-1]) / (x0 - v[-1])
             )
 
-        return 100.0 * np.interp(
+        return mul * np.interp(
             thres,
             v_unique,
             pr_unique
         )
 
     return xr.apply_ufunc(
-        _prob_vec,
-        xr_ds,
-        input_core_dims=[['y']],
-        output_core_dims=[[]],
-        vectorize=True,
-        dask='parallelized',
-        output_dtypes=[np.float32],
-    )
+            _prob_vec,
+            xr_ds,
+            input_core_dims=[['y']],
+            output_core_dims=[[]],
+            vectorize=True,
+            dask='parallelized',
+            output_dtypes=[np.float32],
+        )
 
 def regression_vector(xr_ds, min_len):
     metrics = [

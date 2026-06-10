@@ -139,10 +139,12 @@ def extract_polygons_griddata(data, shp, attr, poly):
 def mask_polygons_xarray_dataArray(xr_ds, shp, attr, poly):
     gpd_poly = shp[shp[attr] == poly].to_crs('EPSG:4326')
     xr_ds = xr_ds.odc.assign_crs('EPSG:4326')
-    mask = rsf.geometry_mask(gpd_poly.geometry,
-            out_shape=xr_ds.odc.geobox.shape,
-            transform=xr_ds.odc.geobox.affine,
-            invert=True)
+    mask = rsf.geometry_mask(
+        gpd_poly.geometry,
+        out_shape=xr_ds.odc.geobox.shape,
+        transform=xr_ds.odc.geobox.affine,
+        invert=True
+    )
     mask = xr.DataArray(mask, dims=('lat', 'lon'))
     return xr_ds.where(mask)
 

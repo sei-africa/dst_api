@@ -6,13 +6,14 @@ import xarray as xr
 from .shapefiles import *
 from .extract import *
 from .util import remove_duplicates_list
-from .index_dailydata import get_daily_index_season
+from .index_dailydata import (get_daily_index_season,
+                              year_daily_index_season)
 from .aggregate_dailydata import aggregate_daily_analysis
 from .zarrdata import get_zarr_daily_dataset
 from .netcdf import extract_netcdf_bbox
 from .geojson import get_user_geojson, geojson_polygons_points
 
-def extract_rectangular_grid_dailydata(params, bbox):
+def extract_rectangular_grid_dailydata(params, bbox=None):
     xr_data = get_zarr_daily_dataset(params)
     xr_coords = get_coords_dataset(xr_data)
 
@@ -312,9 +313,15 @@ def _get_point_dailydata(xr_ds, params):
         }
         for n in tindex
     }
+    years = np.array([
+        k for k in tindex['index'].keys()
+    ])
 
     out_data = []
     for y in range(year1, year2 + 1):
+        if not y in years:
+            out_data += [np.nan]
+            continue
         index = tindex['index'][y]
         frac = tindex['length'][y]['frac']
         if frac < params['minFrac']:
@@ -340,6 +347,12 @@ def _get_grid_dailydata(xr_ds, params):
         params['endMonth'],
         params['endDay']
     )
+
+    cyear = year_daily_index_season(
+        tindex, params['Year']
+    )
+    if cyear: return cyear
+
     index = tindex['index'][params['Year']]
     frac = tindex['length'][params['Year']]['frac']
     if frac < params['minFrac']:

@@ -8,9 +8,10 @@ from .geojson import *
 from .index_time import *
 from .index_clim import *
 from .extract_data import *
-from .extract_dailydata import *
 from .extract_clim import *
 from .extract_zarrclim import *
+from .extract_dailydata import *
+from .extract_dailyclim import *
 from .data_info import *
 from .zarrdata import *
 from .zarrclim import *
@@ -19,7 +20,8 @@ from .download_raw import *
 from .download_clim import *
 from .download_zarrclim import *
 from .download_analysis import *
-from .download_daily_analysis import *
+from .download_dailydata import *
+from .download_dailyclim import *
 from .aggregate_data import *
 from .aggregate_dailydata import *
 from .response import *

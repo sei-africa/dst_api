@@ -33,9 +33,11 @@ def response_data_csv(data, ncinfo):
 
     csv_data = []
     for j in range(len(data)):
-        csv_data += [{'Latitude': mlon[j],
-                      'Longitude': mlat[j],
-                      data_col: data[j]}]
+        csv_data += [{
+                'Latitude': mlon[j],
+                'Longitude': mlat[j],
+                data_col: data[j]
+            }]
 
     return convert_dict2csv(csv_data)
 
@@ -58,48 +60,72 @@ def response_data_json(data, ncinfo):
     else:
         varid = ncinfo['varid']
 
-    json_data = {'Date': date,
-                 'Latitude': lat,
-                 'Longitude': lon,
-                 'Data': data,
-                 'Dimensions': dims,
-                 'VariableName': ncinfo['name'],
-                 'VariableUnits': ncinfo['units'],
-                 'VariableVarId': varid,
-                 'Missing': miss}
+    json_data = {
+        'Date': date,
+        'Latitude': lat,
+        'Longitude': lon,
+        'Data': data,
+        'Dimensions': dims,
+        'VariableName': ncinfo['name'],
+        'VariableUnits': ncinfo['units'],
+        'VariableVarId': varid,
+        'Missing': miss
+    }
     if poly:
         json_data['Name'] = poly
     return json.dumps(json_data)
 
 def response_clim_csv(data, ncinfo):
-    mdate, mlat, mlon = np.meshgrid(data['date'], data['lat'],
-                                    data['lon'], indexing='ij')
-    csv_data = {'Dates': mdate.flatten(),
-                'Latitude': mlat.flatten(),
-                'Longitude': mlon.flatten()}
+    mdate, mlat, mlon = np.meshgrid(
+        data['date'],
+        data['lat'],
+        data['lon'],
+        indexing='ij'
+    )
+    csv_data = {
+        'Dates': mdate.flatten(),
+        'Latitude': mlat.flatten(),
+        'Longitude': mlon.flatten()
+    }
+
+    if 'out_varid' in ncinfo:
+        varid = ncinfo['out_varid']
+    else:
+        varid = ncinfo['varid']
 
     if len(data['ndims']) > 3:
         for i in range(len(data['dim4'])):
-            csv_data[ncinfo['out_varid'][i]] = np.array(data['data'][i]).flatten()
+            csv_data[varid[i]] = np.array(data['data'][i]).flatten()
     else:
-        csv_data[ncinfo['varid']] = np.array(data['data']).flatten()
+        csv_data[varid] = np.array(data['data']).flatten()
 
     csv_data = pd.DataFrame(csv_data)
     return csv_data.to_csv(index=False)
 
 def response_clim_json(data, ncinfo):
-    dims = {'Dates': len(data['date']),
-            'Latitude': len(data['lat']),
-            'Longitude': len(data['lon'])}
-    json_data = {'Dates': data['date'],
-                 'Latitude': data['lat'],
-                 'Longitude': data['lon'],
-                 'Data': data['data'],
-                 'Dimensions': dims,
-                 'VariableName': ncinfo['name'],
-                 'VariableUnits': ncinfo['units'],
-                 'VariableVarId': ncinfo['out_varid'],
-                 'Missing': data['missval']}
+    dims = {
+        'Dates': len(data['date']),
+        'Latitude': len(data['lat']),
+        'Longitude': len(data['lon'])
+    }
+
+    if 'out_varid' in ncinfo:
+        varid = ncinfo['out_varid']
+    else:
+        varid = ncinfo['varid']
+
+    json_data = {
+        'Dates': data['date'],
+        'Latitude': data['lat'],
+        'Longitude': data['lon'],
+        'Data': data['data'],
+        'Dimensions': dims,
+        'VariableName': ncinfo['name'],
+        'VariableUnits': ncinfo['units'],
+        'VariableVarId': varid,
+        'Missing': data['missval']
+    }
+
     if len(data['ndims']) > 3:
         key_dim = data['ndim4'].title()
         ex_dm = {key_dim: len(data['dim4'])}
@@ -117,7 +143,10 @@ def response_data_nc(data, ncinfo, timeinfo):
     lon = data['data']['lon']
     lat = data['data']['lat']
     data = data['data']['data']
-    write_netcdf_nc(lon, lat, data, ncinfo, timeinfo, ncfile)
+    write_netcdf_nc(
+        lon, lat, data, ncinfo,
+        timeinfo, ncfile
+    )
     os.close(tmp_file)
     nc_data = read_binary_file(ncfile)
     os.remove(ncfile)
@@ -212,20 +241,22 @@ def response_raw_points_json(data, dates, points, ncinfo):
     for index, row in points.iterrows():
         val = [float(i) for i in data[index].tolist()]
         js = {
-                'Name': row['loc'],
-                'Longitude': row['lon'],
-                'Latitude': row['lat'],
-                'Values': val
-             }
+            'Name': row['loc'],
+            'Longitude': row['lon'],
+            'Latitude': row['lat'],
+            'Values': val
+        }
         if col_type:
             js['Type'] = row['type']
         tmp += [js]
 
-    out = {'Dates': dates,
-           'Data': tmp,
-           'VariableName': ncinfo['name'],
-           'VariableUnits': ncinfo['units'],
-           'Missing': ncinfo['missval']}
+    out = {
+        'Dates': dates,
+        'Data': tmp,
+        'VariableName': ncinfo['name'],
+        'VariableUnits': ncinfo['units'],
+        'Missing': ncinfo['missval']
+    }
     return json.dumps(out)
 
 def response_clim_points_json(data, dates, points, ncinfo, mpars):
@@ -238,19 +269,21 @@ def response_clim_points_json(data, dates, points, ncinfo, mpars):
         else:
             val = [float(i) for i in data[ix][0].tolist()]
         js = {
-                'Name': row['loc'],
-                'Longitude': row['lon'],
-                'Latitude': row['lat'],
-                'Values': val
-             }
+            'Name': row['loc'],
+            'Longitude': row['lon'],
+            'Latitude': row['lat'],
+            'Values': val
+        }
         if col_type:
             js['Type'] = row['type']
         tmp += [js]
-    out = {'Dates': dates,
-           'Data': tmp,
-           'VariableName': ncinfo['name'],
-           'VariableUnits': ncinfo['units'],
-           'Missing': ncinfo['missval']}
+    out = {
+        'Dates': dates,
+        'Data': tmp,
+        'VariableName': ncinfo['name'],
+        'VariableUnits': ncinfo['units'],
+        'Missing': ncinfo['missval']
+    }
     if mpars:
         out[mpars['name']] = mpars['values']
     return json.dumps(out)
