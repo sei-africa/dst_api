@@ -1,6 +1,5 @@
 import json
 import re
-import json
 import base64
 import copy
 from .extract_dailyclim import *

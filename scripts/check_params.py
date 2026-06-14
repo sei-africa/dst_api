@@ -57,6 +57,8 @@ def checkParamsRequest_rawdata(params):
                 fullYearTS = _checkParamBoolean(params, 'fullYearTS', False)
                 if fullYearTS['status'] == -1: return {'ret': fullYearTS}
                 params = fullYearTS['params']
+            else:
+                params['fullYearTS'] = False
 
             if not params['fullYearTS']:
                 seasStart = _checkseasonStartLength(params, 'seasStart', 1, 12)
