@@ -3,41 +3,53 @@ from .extract_dailydata import *
 from .extract_dailyclim import *
 
 def anomaly_gridded_dailydata(params, datainfo, bbox=None):
+    tseries = extract_rectangular_grid_dailydata(params, bbox)
+    if tseries['status'] == -1: return tseries
+    climato = climatology_gridded_dailydata(params, datainfo, bbox)
+    if climato['status'] == -1: return climato
     return {
-            'status': -1,
-            'message': 'anomaly_gridded_dailydata'
+            'status': 0,
+            'tseries': tseries['data'],
+            'climato': climato['data']
         }
 
 def anomaly_polygons_grid_dailydata(params, datainfo):
+    tseries = extract_polygons_grid_dailydata(params)
+    if tseries['status'] == -1: return tseries
+    climato = climatology_polygons_grid_dailydata(params, datainfo)
+    if climato['status'] == -1: return climato
     return {
-            'status': -1,
-            'message': 'anomaly_polygons_grid_dailydata'
+            'status': 0,
+            'tseries': tseries['data'],
+            'climato': climato['data']
         }
 
 def anomaly_rectangle_point_dailydata(params, datainfo, bbox=None):
-    return {
-            'status': -1,
-            'message': 'anomaly_rectangle_point_dailydata'
-        }
+    tseries = extract_rectangle_point_dailydata(params, bbox)
+    if tseries['status'] == -1: return tseries
+    climato = climatology_rectangle_point_dailydata(params, datainfo, bbox)
+    if climato['status'] == -1: return climato
+    return _anomaly_return_data(tseries, climato)
 
 def anomaly_polygons_point_dailydata(params, datainfo):
-    return {
-            'status': -1,
-            'message': 'anomaly_polygons_point_dailydata'
-        }
+    tseries = extract_polygons_points_dailydata(params)
+    if tseries['status'] == -1: return tseries
+    climato = climatology_polygons_point_dailydata(params, datainfo)
+    if climato['status'] == -1: return climato
+    return _anomaly_return_data(tseries, climato)
 
 def anomaly_geojson_dailydata(params, datainfo):
-    return {
-            'status': -1,
-            'message': 'anomaly_geojson_dailydata'
-        }
+    tseries = extract_geojson_points_dailydata(params)
+    if tseries['status'] == -1: return tseries
+    climato = climatology_geojson_dailydata(params, datainfo)
+    if climato['status'] == -1: return climato
+    return _anomaly_return_data(tseries, climato)
 
 def anomaly_multipoints_dailydata(params, datainfo):
     tseries = extract_multipoints_dailydata(params)
     if tseries['status'] == -1: return tseries
     climato = climatology_multipoints_dailydata(params, datainfo)
     if climato['status'] == -1: return climato
-
     return _anomaly_return_data(tseries, climato)
 
 def _anomaly_return_data(tseries, climato):
@@ -95,12 +107,16 @@ def get_anomaly_multipoints_dailydata(anomaly_data, anom_type, datainfo):
 
     ts_data = []
     for j in range(0, len(coords)):
-        ts_data += [{
+        pts = {
             'Name': coords.iat[j, 0],
             'Longitude': coords.iat[j, 1].item(),
             'Latitude': coords.iat[j, 2].item(),
             'Values': [v[j] for v in anom]
-        }]
+        }
+        if coords.shape[1] == 4:
+            pts['Type'] = coords.iat[j, 3]
+
+        ts_data += [pts]
 
     return {
             'Dates': anomaly_data['tseries']['dates'],
@@ -109,3 +125,41 @@ def get_anomaly_multipoints_dailydata(anomaly_data, anom_type, datainfo):
             'VariableUnits': units,
             'Missing': amiss
         }
+
+def get_anomaly_gridded_dailydata(anomaly_data, anom_type):
+    out_data = []
+    for j in range(len(anomaly_data['tseries'])):
+        clim = anomaly_data['climato'][j]
+        cdata = np.array(clim['data'])
+        cdata = cdata.astype(float)
+        cmiss = clim['missval']
+        cdata = np.where(cdata == cmiss, np.nan, cdata)
+
+        tsdata = anomaly_data['tseries'][j]
+        ts = tsdata['data']['data']
+
+        cmean = cdata[0, :, :, :].squeeze()
+        csd = cdata[1, :, :, :].squeeze()
+
+        if anom_type == 'difference':
+            anom = ts - cmean
+            rnd = 2
+        elif anom_type == 'standardized':
+            mask = csd < 10e-5
+            stdev = np.ma.masked_array(csd, mask=mask)
+            anom = (ts - cmean)/stdev
+            anom[mask] = 0.
+            rnd = 4
+        elif anom_type == 'percentage':
+            mask = cmean < 10e-5
+            mean = np.ma.masked_array(cmean, mask=mask)
+            anom = 100 * (ts - cmean)/mean
+            anom[mask] = 0.
+            rnd = 2
+
+        anom = np.round(anom, rnd)
+        anom.fill_value = -9999.
+        tsdata['data']['data'] = anom
+        out_data += [tsdata]
+
+    return out_data

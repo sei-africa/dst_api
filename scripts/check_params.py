@@ -381,12 +381,14 @@ def checkParamsRequest_analysis_dailyclim(params):
     if 'startYear' in params:
         startYear = _checkDateYear('startYear', params['startYear'])
         if startYear: return startYear
+        params['startYear'] = int(params['startYear'])
     else:
         params['startYear'] = 1991
 
     if 'endYear' in params:
         endYear = _checkDateYear('endYear', params['endYear'])
         if endYear: return endYear
+        params['endYear'] = int(params['endYear'])
     else:
         params['endYear'] = 2020
 
@@ -420,9 +422,34 @@ def checkParamsRequest_analysis_dailyclim(params):
     return {'status': 0, 'params': params}
 
 def checkParamsRequest_analysis_dailyanom(params):
-    checkPars = checkParamsRequest_daily_analysis(params)
+    checkPars = checkParamsRequest_analysis_dailydata(params)
     if checkPars['status'] == -1: return checkPars
     params = checkPars['params']
+
+    if 'startYear' in params:
+        startYear = _checkDateYear('startYear', params['startYear'])
+        if startYear: return startYear
+        params['startYear'] = int(params['startYear'])
+    else:
+        params['startYear'] = 1991
+
+    if 'endYear' in params:
+        endYear = _checkDateYear('endYear', params['endYear'])
+        if endYear: return endYear
+        params['endYear'] = int(params['endYear'])
+    else:
+        params['endYear'] = 2020
+
+    minYear = _checkParamInteger(params, 'minYear', 30)
+    if minYear['status'] == -1: return minYear
+    params = minYear['params']
+
+    anomtype = ['difference', 'percentage', 'standardized']
+    anomaly = _checkParamsKey(params, 'anomaly', anomtype)
+    if anomaly: return anomaly
+
+    params['seasStats'] = 'mean-stdev'
+    params['outFormat_0'] = params['outFormat']
 
     return {'status': 0, 'params': params}
 

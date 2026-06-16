@@ -1,19 +1,17 @@
 import json
 import re
 import base64
-import copy
 from .extract_dailyanom import *
+from .dates import get_ncinfo_date
 from .download_dailydata import (_get_info_dailydata, 
                                  _get_varids_dailydata,
-                                 _get_dailydata_filename)
+                                 _get_dailydata_filename,
+                                 _format_date_dailydata)
 from .download_dailyclim import _check_params_Poly
-# from .response import *
-from .response import response_anomaly_points_cdt
+from .response import *
 from .util import (response_download_file,
                    response_download_error)
 from app.scripts._cache import cache, hash_pamars_anom
-
-# app.dst_api.scripts
 
 def download_analysis_dailyanom(params):
     params = _get_varids_dailydata(params)
@@ -91,22 +89,26 @@ def _anom_geojson_data(params):
         )
 
 def _wrap_anom_gridded_data(anom_function, params, **kwargs):
-    filename = _clim_get_filename(params)
-    datainfo = _clim_netcdf_info(params)
+    datainfo = _get_info_dailydata(params)
+    season = _format_date_dailydata(params)
+    filename = f"anomaly_{params['seasParams']}_{season}"
 
-    cache_key = hash_pamars_clim(params)
+    cache_key = hash_pamars_anom(params)
     cached_data = cache.get(cache_key)
 
     if cached_data is None:
-        out_clim = anom_function(params, datainfo, **kwargs)
-        if out_clim['status'] == -1:
-            return _format_out_clim_error(
-                        out_clim, params, filename
+        anomaly_data = anom_function(params, datainfo, **kwargs)
+        if anomaly_data['status'] == -1:
+            return _format_out_anom_error(
+                        anomaly_data, params, filename
                     )
-        cached_data = out_clim['data']
+
+        cached_data = get_anomaly_gridded_dailydata(
+            anomaly_data, params['anomaly']
+        )
         cache.set(cache_key, cached_data)
 
-    return _response_out_clim_grid(cached_data, params)
+    return _response_anomaly_grid(cached_data, params)
 
 def _wrap_anom_spoints_data(anom_function, params, **kwargs):
     datainfo = _get_info_dailydata(params)
@@ -130,8 +132,76 @@ def _wrap_anom_spoints_data(anom_function, params, **kwargs):
 
     return _response_anomaly_points(cached_data, params)
 
+def _response_anomaly_grid(out, params):
+    datainfo = _update_info_dailydata(params)
 
-########################
+    season = _format_date_dailydata(params)
+    filename = f"anomaly_{params['seasParams']}_{season}"
+    timeinfo = get_ncinfo_date('daily_season', season)
+
+    if len(out) > 1:
+        if params['finalOutput']:
+            out_data = response_data_zip(
+                out,
+                params['outFormat'],
+                datainfo,
+                timeinfo,
+                filename
+            )
+            resfile = f'{filename}.zip'
+            mimetype = 'application/zip'
+            bin_data = True
+        else:
+            return response_data_poly_json(out, datainfo)
+    else:
+        out = out[0]
+        if out['poly']:
+            poly = re.sub(r'[^a-zA-Z0-9]', '', out['poly'])
+            out_file = f'{poly}_{filename}'
+        else:
+            out_file = filename
+
+        if params['outFormat'] == 'netCDF-Format':
+            out_data = response_data_nc(
+                out, datainfo, timeinfo
+            )
+            resfile = f'{out_file}.nc'
+            mimetype = 'application/netcdf'
+            bin_data = True
+        elif params['outFormat'] == 'JSON-Format':
+            out_data = response_data_json(out, datainfo)
+            resfile = f'{out_file}.json'
+            mimetype = 'application/json'
+            bin_data = False
+        elif params['outFormat'] == 'CSV-Column-Format':
+            out_data = response_data_csv(out, datainfo)
+            resfile = f'{out_file}.csv'
+            mimetype = 'text/csv'
+            bin_data = False
+        else:
+            out_data = {
+                'status': -1,
+                'message': 'Unknown output format'
+            }
+            return _format_out_anom_error(
+                    out_data, params, out_file
+                )
+
+    if params['webApp']:
+        if bin_data:
+            out_data = out_data.getvalue()
+            out_data = base64.b64encode(out_data).decode('utf-8')
+
+        return json.dumps({
+                'status': 0,
+                'data': out_data,
+                'filename': resfile,
+                'mimetype': mimetype
+            })
+    else:
+        return response_download_file(
+                out_data, resfile, mimetype
+            )
 
 def _response_anomaly_points(anom_data, params):
     filename = _get_dailydata_filename(params)
@@ -174,3 +244,19 @@ def _format_out_anom_error(anom_data, params, filename):
     else:
         anom_data['filename'] = filename
         return json.dumps(anom_data)
+
+def _update_info_dailydata(params):
+    datainfo = _get_info_dailydata(params)
+    if params['anomaly'] == 'difference':
+        units = datainfo['units']
+    elif params['anomaly'] == 'standardized':
+        units = ''
+    elif params['anomaly'] == 'percentage':
+        units = '%'
+    else:
+        units = ''
+
+    datainfo['name'] = f"Anomaly, {datainfo['name']}"
+    datainfo['units'] = units
+    datainfo['missval'] = -9999.
+    return datainfo

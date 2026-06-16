@@ -19,7 +19,8 @@ from .scripts import (download_rawdata,
                       download_climdata,
                       download_analysis,
                       download_analysis_dailydata,
-                      download_analysis_dailyclim)
+                      download_analysis_dailyclim,
+                      download_analysis_dailyanom)
 from .scripts import (response_download_json,
                       response_download_error)
 
@@ -176,5 +177,29 @@ def download_daily_analysis_clim():
     except Exception as e:
         return response_download_error(str(e), None, 500)
 
-# @dst_api.route('/download_daily_analysis_anom', methods=['GET', 'POST'])
-# def download_daily_analysis_anom():
+@dst_api.route('/download_daily_analysis_anom', methods=['GET', 'POST'])
+def download_daily_analysis_anom():
+    if request.method == 'GET':
+        params = format_get_request(request.args)
+    else:
+        params = request.get_json()
+
+    check_user = checkUserDataAPIKey(params, request, 'analysis')
+    if check_user['status'] == -1:
+        return response_download_error(check_user['message'], None, check_user['code'])
+
+    check_params = checkParamsRequest_analysis_dailyanom(params)
+    if check_params['status'] == -1:
+        return response_download_error(check_params['message'], None, 400)
+
+    try:
+        params = check_params['params']
+        params['user'] = check_user['user']
+        params['httpMethod'] = request.method
+
+        # print('---------------- daily analysis anom ----------------')
+        # print(params)
+
+        return download_analysis_dailyanom(params)
+    except Exception as e:
+        return response_download_error(str(e), None, 500)

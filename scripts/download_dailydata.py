@@ -1,6 +1,5 @@
 import json
 import re
-import copy
 from .extract_dailydata import *
 from .response import *
 from .util import (response_download_file,

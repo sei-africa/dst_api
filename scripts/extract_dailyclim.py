@@ -259,7 +259,7 @@ def climatology_rectangle_point_dailydata(params, datainfo, bbox):
     })
     clim = clim.fillna(datainfo['missval'])
     clim = clim[datainfo['out_varid']].values
-    out = clim.reshape(1, 1)
+    out = clim.reshape(1, clim.shape[0])
     out = pd.DataFrame(out)
     out = [out.map(lambda x: f'{x:.2f}')]
 
