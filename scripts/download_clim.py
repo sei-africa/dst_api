@@ -229,7 +229,7 @@ def _response_out_clim_grid(cached_data, params):
 
 def _clim_netcdf_info(params):
     dataset = _clim_get_dataset(params)
-    keys = ['name', 'varid', 'units', 'missval']
+    keys = ['name', 'varid', 'zarr_varid', 'units', 'missval']
     info = {key: dataset[key] for key in keys}
     info['out_varid'] = params['variable']
 
@@ -254,7 +254,7 @@ def _clim_netcdf_info(params):
                 for p in params['precentileValue']
             ]
             info['out_varid'] = [
-                f"{info['varid']}_{p}"
+                f"{info['zarr_varid']}_{p}"
                 for p in params['precentileValue']
             ]
         else:
@@ -336,6 +336,7 @@ def _clim_netcdf_info(params):
 def _clim_get_dataset(params):
     datasets = GLOBAL_CONFIG['datasets'][params['dataset']]
     out = datasets[params['temporalRes']]['netcdf'][params['variable']]
+    out['zarr_varid'] = params['variable']
     out_copy = copy.deepcopy(out)
     return out_copy
 

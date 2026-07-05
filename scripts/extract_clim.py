@@ -944,7 +944,7 @@ def _clim_format_gridded(out_clim, dataset):
         out_clim = out_clim.transpose(name_dim4, 'time', 'lat', 'lon')
         dim4 = out_clim[name_dim4].values.tolist()
 
-    xdata = out_clim[dataset['varid']].values
+    xdata = out_clim[dataset['zarr_varid']].values
     xdata = np.nan_to_num(xdata, nan=dataset['missval'])
     xdata = xdata.tolist()
     if len(ndims) > 3:
