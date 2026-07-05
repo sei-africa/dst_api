@@ -30,6 +30,8 @@ def compute_some_climatogies(clim):
     dataset_var = []
     for d in datasets:
         for k in datasets[d]:
+            if k == 'variables':
+                continue
             for v in datasets[d][k]['netcdf']:
                 dataset_var += [[d, k, v]]
 
