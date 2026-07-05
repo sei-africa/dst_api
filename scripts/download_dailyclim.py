@@ -12,7 +12,10 @@ from app.scripts._global import GLOBAL_CONFIG
 from app.scripts._cache import cache, hash_pamars_clim
 
 def download_analysis_dailyclim(params):
-    params = _get_varids_dailydata(params)
+    ret_params = _get_varids_dailydata(params)
+    if ret_params['status'] == -1:
+        return ret_params
+    params = ret_params['params']
 
     if params['geomExtract'] == 'original':
         return _clim_original_data(params)

@@ -8,7 +8,10 @@ from .dates import get_ncinfo_date
 from app.scripts._global import GLOBAL_CONFIG
 
 def download_analysis_dailydata(params):
-    params = _get_varids_dailydata(params)
+    ret_params = _get_varids_dailydata(params)
+    if ret_params['status'] == -1:
+        return ret_params
+    params = ret_params['params']
 
     if params['geomExtract'] == 'original':
         return _get_original_data(params)
@@ -236,10 +239,10 @@ def _get_varids_dailydata(params):
         else:
             params['varNames'] = [defvar['minimum_temperature'],
                                   defvar['maximum_temperature']]
-        return params
+        return {'status': 0, 'params': params}
     elif params['variable'] == 'rainfall':
         params['varNames'] = [defvar['rainfall']]
-        return params
+        return {'status': 0, 'params': params}
     else:
         msg = f"Unknown parameter <variable={params['variable']}>."
         return {'status': -1, 'message': msg}

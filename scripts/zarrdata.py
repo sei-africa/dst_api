@@ -42,6 +42,8 @@ def create_zarr_datasets():
     datasets = GLOBAL_CONFIG['datasets']
     for data_set in datasets:
         for time_res in datasets[data_set]:
+            if time_res == 'variables':
+                continue
             dataset = datasets[data_set][time_res]
             if dataset['compute']:
                 continue
@@ -151,12 +153,12 @@ def get_zarr_dataset(params):
     zarr_path = os.path.join(zarr_dir, zarr_var)
     return xr.open_zarr(zarr_path, chunks=zarr_chunks, consolidated=False)
 
-def get_zarr_daily_dataset(params):
+def get_zarr_dataset_timeres(params, time_res):
     datasets = GLOBAL_CONFIG['datasets'][params['dataset']]
-    dataset = datasets['daily']['netcdf']
+    dataset = datasets[time_res]['netcdf']
     dataset = [dataset[v] for v in params['varNames']]
-    zarr_dir = datasets['daily']['zarr_dir']
-    zarr_chunks = datasets['daily']['chunks']
+    zarr_dir = datasets[time_res]['zarr_dir']
+    zarr_chunks = datasets[time_res]['chunks']
     zarr_var = [os.path.basename(d['dir']) for d in dataset]
     zarr_path = [os.path.join(zarr_dir, v) for v in zarr_var]
     zarr_data = [
@@ -184,13 +186,20 @@ def get_zarr_daily_dataset(params):
             ds_tmin.time.max().item(),
             ds_tmax.time.max().item()
         )
+        tmin_days = np.unique(ds_tmin.time.dt.day.values)
+        tmax_days = np.unique(ds_tmax.time.dt.day.values)
+        in_days = np.unique(np.concatenate((tmin_days, tmax_days)))
+
         full_time = pd.date_range(
             start=pd.Timestamp(time_start),
             end=pd.Timestamp(time_end),
             freq='D'
         )
-        ds_tmin = ds_tmin.reindex(time=full_time)
-        ds_tmax = ds_tmax.reindex(time=full_time)
+        full_days = full_time.day.to_numpy()
+        mask = np.isin(full_days, in_days)
+        filtered_time = full_time[mask]
+        ds_tmin = ds_tmin.reindex(time=filtered_time)
+        ds_tmax = ds_tmax.reindex(time=filtered_time)
 
         eq_lon = ds_tmin.sizes['lon'] == ds_tmax.sizes['lon']
         eq_lat = ds_tmin.sizes['lat'] == ds_tmax.sizes['lat']
@@ -208,3 +217,6 @@ def get_zarr_daily_dataset(params):
         return tmean.to_dataset(name='tmean')
     else:
         return zarr_data[0]
+
+def get_zarr_daily_dataset(params):
+    return get_zarr_dataset_timeres(params, 'daily')

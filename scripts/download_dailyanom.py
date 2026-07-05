@@ -14,7 +14,10 @@ from .util import (response_download_file,
 from app.scripts._cache import cache, hash_pamars_anom
 
 def download_analysis_dailyanom(params):
-    params = _get_varids_dailydata(params)
+    ret_params = _get_varids_dailydata(params)
+    if ret_params['status'] == -1:
+        return ret_params
+    params = ret_params['params']
 
     if params['geomExtract'] == 'original':
         return _anom_original_data(params)

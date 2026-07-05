@@ -27,6 +27,7 @@ from .download_dailyclim import *
 from .download_dailyanom import *
 from .aggregate_data import *
 from .aggregate_dailydata import *
+from .aggregate_seasonal import *
 from .response import *
 from .anomaly import *
 
