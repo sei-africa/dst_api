@@ -6,6 +6,8 @@ from .zarrdata import get_zarr_dataset_timeres
 from .extract import get_coords_dataset
 from app.scripts._global import GLOBAL_CONFIG
 
+# app.dst_api.scripts
+
 def aggregate_seasonal_xrdata(params):
     """
     params
@@ -168,8 +170,8 @@ def _get_index_seasonal(times, time_res, seasStart, seasLength):
         'length': season_days
     }
 
-def _aggregate_seasonal_xrdata(xr_ds, params, index, nb_days):
-    xr_ds = xr_ds.isel(time=index)
+def _aggregate_seasonal_xrdata(xr_data, params, index, nb_days):
+    xr_ds = xr_data.isel(time=index)
     xr_nomiss = xr_ds.notnull().sum(dim='time')
     xr_frac = xr_nomiss / nb_days
 
