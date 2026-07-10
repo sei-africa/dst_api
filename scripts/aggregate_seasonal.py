@@ -3,36 +3,16 @@ import xarray as xr
 import pandas as pd
 from .dates import nbdays_of_month
 from .zarrdata import get_zarr_dataset_timeres
-from .extract import get_coords_dataset
+from .extract import (
+    get_coords_dataset,
+    format_list_mpoints_dict,
+    create_geom_mpoints_bbox,
+    create_geom_polygons
+)
+from .shapefiles import get_shapefiles_data
 from app.scripts._global import GLOBAL_CONFIG
 
-# app.dst_api.scripts
-
 def aggregate_seasonal_xrdata(params):
-    """
-    params
-    timeSeries: true or false
-    if timeSeries == true
-        geomExtract: 'points'
-        pointsSource: 'user', 'upload'
-        if pointsSource == 'user'
-            pointsFile: 'point_file_name.csv'
-        if pointsSource == 'upload'
-            pointsList: [{'loc': 'point', 'lon': 47, 'lat': -20}]
-        padLon: int
-        padLat: int
-    inputData: 'daily', 'dekadal', 'monthly'
-    seasStart: int
-    seasLength: int
-    minFrac: 0.95
-    variable: 'rainfall', 'temperature'
-    if variable == 'rainfall':
-        climVariable: 'precip',
-    if variable == 'temperature':
-        climVariable: 'tmin', 'tmax', 'tmean'
-
-    """
-    params = params.copy()
     ret_params = _get_varids_data(params)
     if ret_params['status'] == -1:
         return ret_params
@@ -41,29 +21,16 @@ def aggregate_seasonal_xrdata(params):
     xr_data = get_zarr_dataset_timeres(
         params, params['inputData']
     )
-    if params['timeSeries']:
-        # xr_coords = get_coords_dataset(xr_data)
-        # if params['pointsSource'] == 'user':
-        #     csvdata = read_user_csv_mpoints(
-        #         params['pointsFile'],
-        #         params['user']['username']
-        #     )
-        # else:
-        #     csvdata = format_list_mpoints_dict(
-        #         params['pointsList']
-        #     )
 
-        # sindex = create_geom_mpoints_bbox(
-        #     xr_coords,
-        #     csvdata,
-        #     params['padLon'],
-        #     params['padLat']
-        # )
-
-        # sindex
+    if params['geomExtract'] == 'points':
+        xr_ds = _aggregate_points_xrdata(xr_data, params)
+    elif params['geomExtract'] == 'polygons':
+        xr_ds = _aggregate_polygons_xrdata(xr_data, params)
+    elif params['geomExtract'] == 'original':
         xr_ds = xr_data
     else:
-        xr_ds = xr_data
+        msg = f"Unknown 'geomExtract': {params['geomExtract']}"
+        return {'status': -1, 'message': msg}
 
     tindex = _get_index_seasonal(
         xr_ds['time'].values,
@@ -98,6 +65,88 @@ def aggregate_seasonal_xrdata(params):
     })
 
     return {'status': 0, 'data': ds_data}
+
+def _aggregate_points_xrdata(xr_data, params):
+    if params['pointsSource'] == 'user':
+        csvdata = read_user_csv_mpoints(
+            params['pointsFile'],
+            params['user']['username']
+        )
+    else:
+        csvdata = format_list_mpoints_dict(
+            params['pointsList']
+        )
+
+    xr_coords = get_coords_dataset(xr_data)
+    sindex = create_geom_mpoints_bbox(
+        xr_coords,
+        csvdata,
+        params['padLon'],
+        params['padLat']
+    )
+
+    xr_ds = []
+    xr_crds = []
+    for i, s in enumerate(sindex):
+        if len(s[0]) == 0:
+            continue
+        tmp_ds = xr_data.isel(lat=s[1], lon=s[0])
+        xr_crds += [{
+            'name': csvdata.iloc[i, 0],
+            'lon': csvdata.iloc[i, 1],
+            'lat': csvdata.iloc[i, 2],
+        }]
+        tmp_ds = tmp_ds.mean(dim=['lon', 'lat'],  skipna=True) 
+        xr_ds += [tmp_ds]
+
+    return _combine_points_xrdata(xr_ds, xr_crds)
+
+def _aggregate_polygons_xrdata(xr_data, params):
+    shpObj = get_shapefiles_data(params)
+    if shpObj['status'] == -1: return shpObj
+
+    if type(shpObj['polys']) is not list:
+        shpObj['polys'] = [shpObj['polys']]
+
+    xr_coords = get_coords_dataset(xr_data)
+
+    sindex = []
+    for poly in shpObj['polys']:
+        sindex += [
+            create_geom_polygons(
+                xr_coords,
+                shpObj['shp'],
+                params['shpField'],
+                poly
+            )
+        ]
+
+    xr_ds = []
+    xr_crds = []
+    for i, s in enumerate(sindex):
+        if len(s[0]) == 0:
+            continue
+        ix = xr.DataArray(s[1], dims='points')
+        iy = xr.DataArray(s[0], dims='points')
+        tmp_ds = xr_data.isel(lat=iy, lon=ix)
+        xr_crds += [{
+            'name': shpObj['polys'][i],
+            'lon': tmp_ds.lon.mean(dim='points').values,
+            'lat': tmp_ds.lat.mean(dim='points').values,
+        }]
+        tmp_ds = tmp_ds.mean(dim='points', skipna=True)
+        xr_ds += [tmp_ds]
+
+    return _combine_points_xrdata(xr_ds, xr_crds)
+
+def _combine_points_xrdata(xr_ds, xr_crds):
+    new_dim = pd.Index(np.arange(len(xr_crds)), name='points')
+    xr_ds = xr.concat(xr_ds, dim=new_dim)
+    return xr_ds.assign_coords(
+            name=('points', [c['name'] for c in xr_crds]),
+            lon=('points', [c['lon'] for c in xr_crds]),
+            lat=('points', [c['lat'] for c in xr_crds])
+        )
 
 def _get_index_seasonal(times, time_res, seasStart, seasLength):
     d = times.astype('datetime64[D]')
@@ -192,6 +241,7 @@ def _aggregate_seasonal_xrdata(xr_data, params, index, nb_days):
     return don.where(xr_frac >= params['minFrac'], np.nan)
 
 def _get_varids_data(params):
+    params = params.copy()
     defvar = GLOBAL_CONFIG['datasets'][params['dataset']]['variables']
     if params['variable'] == 'temperature':
         if params['climVariable'] == 'tmin':
@@ -199,6 +249,9 @@ def _get_varids_data(params):
         elif params['climVariable'] == 'tmax':
             params['varNames'] = [defvar['maximum_temperature']]
         elif params['climVariable'] == 'tmean':
+            params['varNames'] = [defvar['minimum_temperature'],
+                                  defvar['maximum_temperature']]
+        elif params['climVariable'] == 'trange':
             params['varNames'] = [defvar['minimum_temperature'],
                                   defvar['maximum_temperature']]
         else:

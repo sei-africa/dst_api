@@ -150,7 +150,10 @@ def mask_polygons_xarray_dataArray(xr_ds, shp, attr, poly):
 
 def get_shapefiles_data(params):
     if params['shpSource'] == 'user':
-        shp_file = get_shapefiles_path(params['shpFile'], params['user']['username'])
+        shp_file = get_shapefiles_path(
+            params['shpFile'],
+            params['user']['username']
+        )
     else:
         shp_file = get_shapefiles_path(params['shpFile'])
 
@@ -159,12 +162,18 @@ def get_shapefiles_data(params):
     shp_obj = read_shapefile_polygons(shp_file['path'])
     if shp_obj['status'] == -1: shp_obj
 
-    bbox_df = get_bbox_polygons(shp_obj['shp'], params['shpField'])
+    bbox_df = get_bbox_polygons(
+        shp_obj['shp'], params['shpField']
+    )
 
     if params['allPolygons']:
         npolys = bbox_df[params['shpField']].tolist()
         params['Poly'] = remove_duplicates_list(npolys)
 
-    return {'status': 0, 'shp': shp_obj['shp'],
-            'bbox': bbox_df, 'polys': params['Poly']}
+    return {
+            'status': 0,
+            'shp': shp_obj['shp'],
+            'bbox': bbox_df,
+            'polys': params['Poly']
+        }
 

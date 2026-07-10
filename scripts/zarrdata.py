@@ -169,6 +169,7 @@ def get_zarr_dataset_timeres(params, time_res):
         )
         for path in zarr_path
     ]
+    # if params['variable'] == 'temperature':
     if len(zarr_data) == 2:
         ds_tmin = zarr_data[0]
         ds_tmax = zarr_data[1]
