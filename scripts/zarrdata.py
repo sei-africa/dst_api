@@ -311,7 +311,7 @@ def compute_zarr_datasets(var_info, data_set, time_res):
     if var_info['data_type'] == 'et0':
         pars0 = {
             'dataset': data_set,
-            'temporalRes': var_info['input_tres']
+            'temporalRes': var_info['input']
         }
         data = []
         for vr in var_info['input_data']:
@@ -336,7 +336,7 @@ def compute_zarr_datasets(var_info, data_set, time_res):
         if var_info['function'] == 'et0_hargreaves_modified':
             et0 = compute_function(
                 *data, ra=ra_time,
-                tstep=var_info['input_tres']
+                tstep=var_info['input']
             )
         elif var_info['function'] == 'et0_hargreaves_fao':
             et0 = compute_function(*data, ra=ra_time)
