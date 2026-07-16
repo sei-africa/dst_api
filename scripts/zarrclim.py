@@ -40,7 +40,7 @@ def compute_some_climatogies(clim):
         if not os.path.exists(zarr_path):
             os.makedirs(zarr_path)
 
-        if datasets[dset[0]][dset[1]]['compute']:
+        if datasets[dset[0]][dset[1]]['netcdf'][dset[2]]['compute']:
            in_data = datasets[dset[0]][dset[1]]['netcdf'][dset[2]]['input']
            zarr_chunks = datasets[dset[0]][in_data]['chunks']
         else:

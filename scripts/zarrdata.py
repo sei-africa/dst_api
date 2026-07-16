@@ -6,7 +6,10 @@ import pandas as pd
 from functools import partial
 from datetime import datetime
 from .dates import extract_ncfiles_datetime
+from .compute_et0 import *
 from app.scripts._global import GLOBAL_CONFIG
+
+# app.dst_api.scripts
 
 def _list_all_netcdf_files(nc_dir, nc_format):
     frmt = re.escape(nc_format)
@@ -44,8 +47,9 @@ def create_zarr_datasets():
         for time_res in datasets[data_set]:
             if time_res == 'variables':
                 continue
+
             dataset = datasets[data_set][time_res]
-            if dataset['compute']:
+            if not 'zarr_dir' in dataset:
                 continue
 
             zarr_dir = dataset['zarr_dir']
@@ -57,6 +61,9 @@ def create_zarr_datasets():
 
             for var_name in nc_info:
                 var_info = nc_info[var_name]
+                if var_info['compute']:
+                    continue
+
                 nc_files = _list_all_netcdf_files(var_info['dir'], var_info['format'])
                 if nc_files is None:
                     print(f'No netCDF files found for: {data_set} {time_res} {var_name}')
@@ -141,8 +148,9 @@ def create_zarr_datasets():
 
 def get_zarr_dataset(params):
     datasets = GLOBAL_CONFIG['datasets'][params['dataset']]
-    if datasets[params['temporalRes']]['compute']:
-        input_res = datasets[params['temporalRes']]['netcdf'][params['variable']]['input']
+    datasetv = datasets[params['temporalRes']]['netcdf'][params['variable']]
+    if datasetv['compute']:
+        input_res = datasetv['input']
     else:
         input_res = params['temporalRes']
 
@@ -221,3 +229,120 @@ def get_zarr_dataset_timeres(params, time_res):
 
 def get_zarr_daily_dataset(params):
     return get_zarr_dataset_timeres(params, 'daily')
+
+def create_computed_zarr_datasets():
+    datasets = GLOBAL_CONFIG['datasets']
+    for data_set in datasets:
+        for time_res in datasets[data_set]:
+            if time_res == 'variables':
+                continue
+
+            dataset = datasets[data_set][time_res]
+            if not 'zarr_dir' in dataset:
+                continue
+
+            zarr_dir = dataset['zarr_dir']
+            zarr_chunks = dataset['chunks']
+            nc_info = dataset['netcdf']
+
+            for var_name in nc_info:
+                var_info = nc_info[var_name]
+                if not var_info['compute']:
+                    continue
+
+                if not 'write_zarr' in var_info:
+                    continue
+
+                if not var_info['write_zarr']:
+                    continue
+
+                print(f'Computing zarr dataset: {data_set} {time_res} {var_name} ....')
+
+                zarr_data0 = compute_zarr_datasets(var_info, data_set, time_res)
+                if zarr_data0 is None:
+                    continue
+
+                zarr_dates0 = zarr_data0['time'].values.astype('datetime64[s]')
+                zarr_path = os.path.join(zarr_dir, var_info['dir_zarr'])
+
+                ds_new = True
+                if os.path.exists(zarr_path):
+                    zarr_check = [var_name] + list(zarr_chunks.keys())
+                    zarr_check = [os.path.join(zarr_path, x) for x in zarr_check]
+                    zarr_check = [os.path.exists(x) for x in zarr_check]
+                    if all(zarr_check):
+                        ds_new = False
+                        zarr_data = xr.open_zarr(zarr_path, consolidated=False)
+                        zarr_dates = zarr_data['time'].values
+                        zarr_dates = zarr_dates.astype('datetime64[s]')
+                        ds_update = np.isin(zarr_dates0, zarr_dates)
+                        if all(ds_update.tolist()):
+                            print(f'No update for: {data_set} {time_res} {var_name}')
+                            continue
+                        else:
+                            ds_update = ~ds_update
+
+                        zarr_dates0 = zarr_dates0[ds_update]
+                        zarr_data0 = zarr_data0.sel(time=zarr_dates0)
+                    else:
+                        os.makedirs(zarr_path, exist_ok=True)
+                else:
+                    os.makedirs(zarr_path)
+
+                if len(zarr_dates0) > zarr_chunks['time']:
+                    zarr_data0 = zarr_data0.chunk(zarr_chunks)
+
+                if ds_new:
+                    zarr_data0.to_zarr(
+                        store=zarr_path,
+                        mode='w',
+                        consolidated=False
+                    )
+                else:
+                    zarr_data0.to_zarr(
+                        store=zarr_path,
+                        append_dim='time',
+                        consolidated=False
+                    )
+
+                print('Computing zarr dataset done!')
+
+def compute_zarr_datasets(var_info, data_set, time_res):
+    if var_info['data_type'] == 'et0':
+        pars0 = {
+            'dataset': data_set,
+            'temporalRes': var_info['input_tres']
+        }
+        data = []
+        for vr in var_info['input_data']:
+            pars1 = pars0.copy()
+            pars1['variable'] = vr
+            tmp = get_zarr_dataset(pars1)
+            data.append(tmp[vr].sortby('time'))
+
+        ra_365 = extraterrestrial_radiation(
+            lat=data[0]['lat'], tstep=time_res
+        )
+        ra_time = format_ra_to_time(
+            ra=ra_365, time=data[0]['time']
+        )
+
+        et0_functions = {
+            'et0_hargreaves_modified': et0_hargreaves_modified,
+            'et0_hargreaves_fao': et0_hargreaves_fao
+        }
+        compute_function = et0_functions[var_info['function']]
+
+        if var_info['function'] == 'et0_hargreaves_modified':
+            et0 = compute_function(
+                *data, ra=ra_time,
+                tstep=var_info['input_tres']
+            )
+        elif var_info['function'] == 'et0_hargreaves_fao':
+            et0 = compute_function(*data, ra=ra_time)
+        else:
+            return None
+
+        return et0.to_dataset()
+
+    return None

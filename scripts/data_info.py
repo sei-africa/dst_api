@@ -11,17 +11,30 @@ def get_datasets_information():
     for d_key in datasets:
         data_info[d_key] = {}
         for t_key, t_val in datasets[d_key].items():
-            if t_key == 'variables': continue
-            if not t_val['compute']:
-                zarr_dir = datasets[d_key][t_key]['zarr_dir']
-                zarr_chunks = datasets[d_key][t_key]['chunks']
+            if t_key == 'variables':
+                continue
+            data_info[d_key][t_key] = {}
+            for v_key in t_val['netcdf']:
+                dataset = t_val['netcdf'][v_key]
+                read_zarr_data1 = False
+                if 'write_zarr' in dataset:
+                    if dataset['write_zarr']:
+                        read_zarr_data1 = True
+                read_zarr_data2 = not dataset['compute']
 
-                data_info[d_key][t_key] = {}
-                for v_key in t_val['netcdf']:
-                    dataset = t_val['netcdf'][v_key]
-                    zarr_var = os.path.basename(dataset['dir'])
+                if read_zarr_data1 or read_zarr_data2:
+                    zarr_dir = t_val['zarr_dir']
+                    zarr_chunks = t_val['chunks']
+                    if read_zarr_data1:
+                        zarr_var = dataset['dir_zarr']
+                    else:
+                        zarr_var = os.path.basename(dataset['dir'])
                     zarr_path = os.path.join(zarr_dir, zarr_var)
-                    xr_data = xr.open_zarr(zarr_path, chunks=zarr_chunks, consolidated=False)
+                    xr_data = xr.open_zarr(
+                        zarr_path,
+                        chunks=zarr_chunks,
+                        consolidated=False
+                    )
                     lon = xr_data['lon'].values
                     lat = xr_data['lat'].values
                     bbox = {
@@ -29,11 +42,11 @@ def get_datasets_information():
                         'maxlon': round(np.max(lon).item(), 6),
                         'minlat': round(np.min(lat).item(), 6),
                         'maxlat': round(np.max(lat).item(), 6)
-                        }
+                    }
                     sres = {
                         'lon': round(np.mean(np.diff(lon)).item(), 6),
                         'lat': round(np.mean(np.diff(lat)).item(), 6)
-                        }
+                    }
                     time = xr_data['time'].values
                     t_min = np.min(time).astype('datetime64[s]')
                     t_max = np.max(time).astype('datetime64[s]')
@@ -47,21 +60,26 @@ def get_datasets_information():
                         dk2 = int(t_max.strftime('%d'))
                         dk1 = 1 if dk1 <= 10 else 3 if dk1 > 20 else 2
                         dk2 = 1 if dk2 <= 10 else 3 if dk2 > 20 else 2
-                        trange = {'start': f'{ym1}-{dk1}', 'end': f'{ym2}-{dk2}'}
+                        trange = {
+                            'start': f'{ym1}-{dk1}',
+                            'end': f'{ym2}-{dk2}'
+                        }
                     else:
                         trange = {
                             'start': t_min.strftime('%Y-%m-%d'),
                             'end': t_max.strftime('%Y-%m-%d')
-                            }
+                        }
 
-                    data_info[d_key][t_key][v_key] = {'bbox': bbox,
-                                                      'res': sres,
-                                                      'range': trange}
+                    data_info[d_key][t_key][v_key] = {
+                        'bbox': bbox,
+                        'res': sres,
+                        'range': trange
+                    }
     datasets_info = {
-                'ALL': 'Analysis datasets',
-                'MON': 'Monitoring datasets',
-                'CLM': 'Climatology datasets'
-            }
+        'ALL': 'Analysis datasets',
+        'MON': 'Monitoring datasets',
+        'CLM': 'Climatology datasets'
+    }
 
     out = {}
     for d_key in datasets:
@@ -79,9 +97,12 @@ def get_datasets_information():
                 tmp['missing_value'] = v_val['missval']
                 tmp['temporal_resolution'] = t_key
 
-                if t_val['compute']:
+                if v_val['compute']:
                     in_res = v_val['input']
-                    trange = data_info[d_key][in_res][v_key]['range']
+                    v_info = data_info[d_key][in_res]
+                    if not v_key in v_info:
+                        continue
+                    trange = v_info[v_key]['range']
                     if t_key == 'annual':
                         tr1 = trange['start'][0:4]
                         tr2 = trange['end'][0:4]

@@ -231,9 +231,7 @@ def _response_download_grid(out, params, dataset):
 
 def _get_download_dataset(params):
     datasets = GLOBAL_CONFIG['datasets'][params['dataset']]
-    tmp = datasets[params['temporalRes']]
-    out = tmp['netcdf'][params['variable']]
-    out['compute'] = tmp['compute']
+    out = datasets[params['temporalRes']]['netcdf'][params['variable']]
     out['out_varid'] = params['variable']
     out_copy = copy.deepcopy(out)
     return out_copy

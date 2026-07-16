@@ -819,8 +819,8 @@ def _clim_params_info(params):
 
     input_res = params['temporalRes']
     min_frac = 1.
-    if dataset['compute']:
-        info_var = dataset['netcdf'][params['variable']]
+    info_var = dataset['netcdf'][params['variable']]
+    if info_var['compute']:
         input_res = info_var['input']
         min_frac = float(info_var['minfrac'])
     else:

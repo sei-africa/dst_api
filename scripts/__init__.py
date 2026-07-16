@@ -30,5 +30,6 @@ from .aggregate_dailydata import *
 from .aggregate_seasonal import *
 from .response import *
 from .anomaly import *
+from .compute_et0 import *
 
 __all__ = [s for s in dir() if not s.startswith('_')]
