@@ -157,9 +157,23 @@ def get_zarr_dataset(params):
     dataset = datasets[input_res]['netcdf'][params['variable']]
     zarr_dir = datasets[input_res]['zarr_dir']
     zarr_chunks = datasets[input_res]['chunks']
-    zarr_var = os.path.basename(dataset['dir'])
+
+    zarr_d = False
+    if 'write_zarr' in dataset:
+        if dataset['write_zarr']:
+            zarr_d = True
+
+    if zarr_d:
+        zarr_var = dataset['dir_zarr']
+    else:
+        zarr_var = os.path.basename(dataset['dir'])
+
     zarr_path = os.path.join(zarr_dir, zarr_var)
-    return xr.open_zarr(zarr_path, chunks=zarr_chunks, consolidated=False)
+    return xr.open_zarr(
+            zarr_path,
+            chunks=zarr_chunks,
+            consolidated=False
+        )
 
 def get_zarr_dataset_timeres(params, time_res):
     datasets = GLOBAL_CONFIG['datasets'][params['dataset']]
@@ -229,6 +243,24 @@ def get_zarr_dataset_timeres(params, time_res):
 
 def get_zarr_daily_dataset(params):
     return get_zarr_dataset_timeres(params, 'daily')
+
+def regrid_zarr_dataset(da_ref, da_var):
+    da_var = da_var.reindex(time=da_ref['time'])
+    # eq_lon = da_ref.sizes['lon'] == da_var.sizes['lon']
+    # eq_lat = da_ref.sizes['lat'] == da_var.sizes['lat']
+    eq_lon = da_ref.indexes['lon'].equals(da_var.indexes['lon'])
+    eq_lat = da_ref.indexes['lat'].equals(da_var.indexes['lat'])
+
+    if eq_lon and eq_lat:
+        return da_var
+    else:
+        da_out = da_var.interp(
+            lat=da_ref['lat'],
+            lon=da_ref['lon'],
+            method='linear'
+        )
+        reset_chunk = {k: -1 for k in da_out.chunksizes}
+        return da_out.chunk(reset_chunk)
 
 def create_computed_zarr_datasets():
     datasets = GLOBAL_CONFIG['datasets']
@@ -320,6 +352,9 @@ def compute_zarr_datasets(var_info, data_set, time_res):
             tmp = get_zarr_dataset(pars1)
             data.append(tmp[vr].sortby('time'))
 
+        for i in range(1, len(data)):
+            data[i] = regrid_zarr_dataset(data[0], data[i])
+
         ra_365 = extraterrestrial_radiation(
             lat=data[0]['lat'], tstep=time_res
         )
@@ -335,8 +370,7 @@ def compute_zarr_datasets(var_info, data_set, time_res):
 
         if var_info['function'] == 'et0_hargreaves_modified':
             et0 = compute_function(
-                *data, ra=ra_time,
-                tstep=var_info['input']
+                *data, ra=ra_time, tstep=var_info['input']
             )
         elif var_info['function'] == 'et0_hargreaves_fao':
             et0 = compute_function(*data, ra=ra_time)
