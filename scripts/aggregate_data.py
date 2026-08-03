@@ -13,36 +13,37 @@ def aggregate_climatology(
     proba_thres=10,
     proba_unit='perc',
     trend_unit='perYear',
+    time_dim='y',
 ):
     np.seterr(divide='ignore', invalid='ignore')
-    nomiss = xr_ds.notnull().sum(dim='y')
+    nomiss = xr_ds.notnull().sum(dim=time_dim)
 
     if clim_fun == 'mean':
-        clim = xr_ds.mean(dim='y', skipna=True)
+        clim = xr_ds.mean(dim=time_dim, skipna=True)
     elif clim_fun == 'median':
-        clim = xr_ds.median(dim='y', skipna=True)
+        clim = xr_ds.median(dim=time_dim, skipna=True)
     elif clim_fun == 'min':
-        clim = xr_ds.min(dim='y', skipna=True)
+        clim = xr_ds.min(dim=time_dim, skipna=True)
     elif clim_fun == 'max':
-        clim = xr_ds.max(dim='y', skipna=True)
+        clim = xr_ds.max(dim=time_dim, skipna=True)
     elif clim_fun == 'stdev':
-        clim = xr_ds.std(dim='y', skipna=True)
+        clim = xr_ds.std(dim=time_dim, skipna=True)
     elif clim_fun == 'percentile':
-        clim = xr_ds.quantile(q=percentile, dim='y', skipna=True)
+        clim = xr_ds.quantile(q=percentile, dim=time_dim, skipna=True)
     elif clim_fun == 'cv':
-        mn = xr_ds.mean(dim='y', skipna=True)
-        std = xr_ds.std(dim='y', skipna=True)
+        mn = xr_ds.mean(dim=time_dim, skipna=True)
+        std = xr_ds.std(dim=time_dim, skipna=True)
         clim = (std / mn) * 100
         rzr = np.logical_and(mn != 0.0, clim.notnull())
         clim = clim.where(rzr, 0.0)
     elif clim_fun == 'frequency':
         mask_f = f'xr_ds{frequency_oper}{frequency_thres}'
         mask = eval(mask_f)
-        mask = mask.sum(dim='y', skipna=True)
+        mask = mask.sum(dim=time_dim, skipna=True)
         clim = 100 * mask / nomiss
     elif clim_fun == 'mean-stdev':
-        mn = xr_ds.mean(dim='y', skipna=True)
-        sd = xr_ds.std(dim='y', skipna=True)
+        mn = xr_ds.mean(dim=time_dim, skipna=True)
+        sd = xr_ds.std(dim=time_dim, skipna=True)
         clim = xr.concat(
             [mn, sd],
             dim=xr.DataArray(
@@ -53,23 +54,31 @@ def aggregate_climatology(
             ),
         )
     elif clim_fun == 'probExc':
-        # clim = probability_exceeding0(xr_ds, proba_thres, proba_unit)
-        clim = probability_exceeding(xr_ds, proba_thres, proba_unit)
+        # clim = probability_exceeding0(
+        #     xr_ds, proba_thres, proba_unit, time_dim
+        # )
+        clim = probability_exceeding(
+            xr_ds, proba_thres, proba_unit, time_dim
+        )
     elif clim_fun == 'probNoExc':
-        # clim = probability_exceeding0(xr_ds, proba_thres, proba_unit)
-        clim = probability_exceeding(xr_ds, proba_thres, proba_unit)
+        # clim = probability_exceeding0(
+        #     xr_ds, proba_thres, proba_unit, time_dim
+        # )
+        clim = probability_exceeding(
+            xr_ds, proba_thres, proba_unit, time_dim
+        )
         if proba_unit == 'perc':
             clim = 100.0 - clim
         else:
             clim = 1.0 - clim
     elif clim_fun == 'trend':
-        clim = regression_vector(xr_ds, min_year)
+        clim = regression_vector(xr_ds, min_year, time_dim)
         if trend_unit == 'overPeriod':
-            yr = xr_ds['y'].values
+            yr = xr_ds[time_dim].values
             clim.loc[dict(metric='slope')] *= len(yr)
         if trend_unit == 'percPeriod':
-            yr = xr_ds['y'].values
-            moy = xr_ds.mean(dim='y', skipna=True)
+            yr = xr_ds[time_dim].values
+            moy = xr_ds.mean(dim=time_dim, skipna=True)
             moy = 100 * len(yr) / moy
             clim.loc[dict(metric="slope")] *= moy
     else:
@@ -78,23 +87,28 @@ def aggregate_climatology(
     return clim.where(nomiss >= min_year, np.nan)
 
 def aggregate_timeSeries(
-    xr_ds, aggr_fun, aggr_len, min_frac,
-    count_oper='>=', count_thres=1.0
+    xr_ds,
+    aggr_fun,
+    aggr_len,
+    min_frac,
+    count_oper='>=',
+    count_thres=1.0,
+    time_dim='time',
 ):
     if aggr_fun == 'sum':
-        val = xr_ds.sum(dim='time', skipna=True)
+        val = xr_ds.sum(dim=time_dim, skipna=True)
     elif aggr_fun == 'mean':
-        val = xr_ds.mean(dim='time', skipna=True)
+        val = xr_ds.mean(dim=time_dim, skipna=True)
     elif aggr_fun == 'median':
-        val = xr_ds.median(dim='time', skipna=True)
+        val = xr_ds.median(dim=time_dim, skipna=True)
     elif aggr_fun == 'min':
-        val = xr_ds.min(dim='time', skipna=True)
+        val = xr_ds.min(dim=time_dim, skipna=True)
     elif aggr_fun == 'max':
-        val = xr_ds.max(dim='time', skipna=True)
+        val = xr_ds.max(dim=time_dim, skipna=True)
     elif aggr_fun == 'count':
         mask_f = f'xr_ds{count_oper}{count_thres}'
         mask = eval(mask_f)
-        val = mask.sum(dim='time', skipna=True)
+        val = mask.sum(dim=time_dim, skipna=True)
     else:
         if len(xr_ds.shape) == 3:
             val = xr_ds[0, :, :]
@@ -102,19 +116,29 @@ def aggregate_timeSeries(
         else:
             val = np.nan
 
-    mfrac = xr_ds.isnull().sum(dim='time') / aggr_len
+    mfrac = xr_ds.isnull().sum(dim=time_dim) / aggr_len
     return val.where(mfrac < min_frac, np.nan)
 
-def probability_exceeding0(xr_ds, thres, unit='perc'):
+def probability_exceeding0(
+    xr_ds,
+    thres,
+    unit='perc',
+    time_dim='y',
+):
     if unit == 'perc':
         mul = 100.0
     else:
         mul = 1.0
 
-    return mul * (xr_ds > thres).mean(dim='y')
+    return mul * (xr_ds > thres).mean(dim=time_dim)
 
-def probability_exceeding(xr_ds, thres, unit='perc'):
-    xr_ds = xr_ds.chunk({'y': -1})
+def probability_exceeding(
+    xr_ds,
+    thres,
+    unit='perc',
+    time_dim='y',
+):
+    xr_ds = xr_ds.chunk({time_dim: -1})
     if unit == 'perc':
         mul = 100.0
     else:
@@ -174,14 +198,18 @@ def probability_exceeding(xr_ds, thres, unit='perc'):
     return xr.apply_ufunc(
             _prob_vec,
             xr_ds,
-            input_core_dims=[['y']],
+            input_core_dims=[[time_dim]],
             output_core_dims=[[]],
             vectorize=True,
             dask='parallelized',
             output_dtypes=[np.float32],
         )
 
-def regression_vector(xr_ds, min_len):
+def regression_vector(
+    xr_ds,
+    min_len,
+    time_dim='y',
+):
     metrics = [
         'slope',
         'std.slope',
@@ -195,8 +223,8 @@ def regression_vector(xr_ds, min_len):
         'sigma',
     ]
 
-    y = xr_ds.chunk({'y': -1})
-    x = y['y'].values.astype(float)
+    y = xr_ds.chunk({time_dim: -1})
+    x = y[time_dim].values.astype(float)
 
     valid_x = ~np.isnan(x)
     x_valid = x[valid_x]
@@ -269,7 +297,7 @@ def regression_vector(xr_ds, min_len):
     result = xr.apply_ufunc(
         _regress_one,
         y,
-        input_core_dims=[['y']],
+        input_core_dims=[[time_dim]],
         output_core_dims=[['metric']],
         vectorize=True,
         dask='parallelized',
