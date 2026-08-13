@@ -822,7 +822,8 @@ def _clim_params_info(params):
     info_var = dataset['netcdf'][params['variable']]
     if info_var['compute']:
         input_res = info_var['input']
-        min_frac = float(info_var['minfrac'])
+        if 'minfrac' in info_var:
+            min_frac = float(info_var['minfrac'])
     else:
         if 'minFrac' in params:
            min_frac = float(params['minFrac']) 
