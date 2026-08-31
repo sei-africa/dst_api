@@ -7,10 +7,10 @@ from .download_raw import download_rawdata
 from app.scripts._cache import cache, hash_pamars_anom
 
 def get_anomaly_data(params):
-    params['webApp'] = True
-    params['httpMethod_0'] = params['httpMethod']
-    params['httpMethod'] = 'POST'
-    params['finalOutput'] = False
+    # params['webApp'] = True
+    # params['httpMethod_0'] = params['httpMethod']
+    # params['httpMethod'] = 'POST'
+    # params['finalOutput'] = False
 
     cache_key = hash_pamars_anom(params)
     cached_data = cache.get(cache_key)
@@ -36,8 +36,13 @@ def get_anomaly_data(params):
 
     return {'status': 0, 'data': cached_data}
 
-def _compute_anomalies(ts_data, anom_type, data_units,
-                      mean, stdev=None):
+def _compute_anomalies(
+    ts_data,
+    anom_type,
+    data_units,
+    mean,
+    stdev=None
+):
     anom_miss = -9999.
     if anom_type == 'difference':
         anom = ts_data - mean
@@ -103,7 +108,8 @@ def _anomaly_format_params(params):
 
 def _anomaly_get_data(params):
     params = _anomaly_format_params(params)
-    params_clim = ['dataset', 'temporalRes', 'variable', 'fullYearTS',
+    params_clim = [
+        'dataset', 'temporalRes', 'variable', 'fullYearTS',
         'fullYear', 'climDate', 'seasLength', 'daysWindow',
         'climFunction', 'startYear', 'endYear', 'minYear',
         'geomExtract', 'pointsSource', 'pointsFile', 'pointsList',
@@ -111,7 +117,8 @@ def _anomaly_get_data(params):
         'shpSource', 'shpFile', 'shpField', 'Poly', 'allPolygons',
         'geojsonSource', 'geojsonFile', 'geojsonData', 'geojsonField',
         'spatialAvg', 'outFormat', 'webApp', 'gridded',
-        'user', 'httpMethod', 'finalOutput']
+        'user', 'httpMethod', 'finalOutput'
+    ]
     pclim = {k: v for k, v in params.items() if k in params_clim}
     dailyClim = pclim['temporalRes'] == 'daily' and pclim['daysWindow'] != 0
     seasClim = pclim['temporalRes'] == 'seasonal' and pclim['seasLength'] != 3

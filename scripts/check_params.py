@@ -1,19 +1,28 @@
 from datetime import datetime
+from app.scripts._global import GLOBAL_CONFIG
 
-def checkParamsRequest_rawdata(params):
-    dataset = _checkParamsKey(params, 'dataset', ['ALL', 'MON'])
+def _check_available_datasets(params):
+    tmpDset = list(GLOBAL_CONFIG['datasets'])
+    dataset = _checkParamsKey(params, 'dataset', tmpDset)
     if dataset: return dataset
 
-    # change to read directly from app/yaml/datasets-config.yaml
-    tmpR = ['daily', 'dekadal', 'monthly', 'seasonal', 'annual']
+    tmpR = list(GLOBAL_CONFIG['datasets'][params['dataset']])
+    tmpR.remove('variables')
     temporalRes = _checkParamsKey(params, 'temporalRes', tmpR)
     if temporalRes: return temporalRes
 
-    # change to read directly from app/yaml/datasets-config.yaml
-    params_available = ['precip', 'tmax', 'tmin', 'tmean', 'pmsl', 'pres', 'rad',
-                        'rhmean', 'rhmax', 'rhmin', 'wspd', 'wdir', 'et0']
-    variable = _checkParamsKey(params, 'variable', params_available)
+    # params_available = ['precip', 'tmax', 'tmin', 'tmean', 'pmsl', 'pres', 'rad',
+    #                     'rhmean', 'rhmax', 'rhmin', 'wspd', 'wdir', 'et0']
+    pVars = list(GLOBAL_CONFIG['datasets'][params['dataset']][params['temporalRes']]['netcdf'])
+    variable = _checkParamsKey(params, 'variable', pVars)
     if variable: return variable
+
+    return {'status': 0, 'params': params}
+
+def checkParamsRequest_rawdata(params):
+    dsets = _check_available_datasets(params)
+    if dsets['status'] == -1: return dsets
+    params = dsets['params']
 
     outF = ['CSV-CDT-Format', 'JSON-Format', 'netCDF-Format', 'CSV-Column-Format']
     outFormat = _checkParamsKey(params, 'outFormat', outF)
@@ -100,19 +109,9 @@ def checkParamsRequest_rawdata(params):
     return {'status': 0, 'params': params}
 
 def checkParamsRequest_climatology(params):
-    dataset = _checkParamsKey(params, 'dataset', ['ALL', 'MON'])
-    if dataset: return dataset
-
-    # change to read directly from app/yaml/datasets-config.yaml
-    tmpR = ['daily', 'dekadal', 'monthly', 'seasonal', 'annual']
-    temporalRes = _checkParamsKey(params, 'temporalRes', tmpR)
-    if temporalRes: return temporalRes
-
-    # change to read directly from app/yaml/datasets-config.yaml
-    params_available = ['precip', 'tmax', 'tmin', 'tmean', 'pmsl', 'pres', 'rad',
-                        'rhmean', 'rhmax', 'rhmin', 'wspd', 'wdir', 'et0']
-    variable = _checkParamsKey(params, 'variable', params_available)
-    if variable: return variable
+    dsets = _check_available_datasets(params)
+    if dsets['status'] == -1: return dsets
+    params = dsets['params']
 
     outF = ['CSV-CDT-Format', 'JSON-Format', 'netCDF-Format', 'CSV-Column-Format']
     outFormat = _checkParamsKey(params, 'outFormat', outF)
@@ -229,6 +228,10 @@ def checkParamsRequest_climatology(params):
     return {'status': 0, 'params': params}
 
 def checkParamsRequest_analysis(params):
+    analysislist = ['anomaly', 'spi', 'spei']
+    analysis = _checkParamsKey(params, 'analysis', analysislist)
+    if analysis: return analysis
+
     if params['analysis'] == 'anomaly':
         anomtype = ['difference', 'percentage', 'standardized']
         anomaly = _checkParamsKey(params, 'anomaly', anomtype)
@@ -246,6 +249,17 @@ def checkParamsRequest_analysis(params):
         params['webApp'] = True
         params['finalOutput'] = False
     elif params['analysis'] == 'spi':
+        params['variable'] = GLOBAL_CONFIG['datasets'][params['dataset']]['variables']['rainfall']
+        distrfun = ['gamma', 'peasron3', 'llogistic', 'zscore']
+        distribution = _checkParamsKey(params, 'distribution', distrfun)
+        if distribution: return distribution
+        tseries = checkParamsRequest_rawdata(params)
+        if tseries['status'] == -1: return tseries
+        params = tseries['params']
+        params['webApp'] = True
+        params['finalOutput'] = False
+    elif params['analysis'] == 'spei':
+        params['variable'] = GLOBAL_CONFIG['datasets'][params['dataset']]['variables']['rainfall']
         return {'status': -1, 'message': 'Not implemented yet'}
     else:
         return {'status': -1, 'message': 'Unknown analysis type'}

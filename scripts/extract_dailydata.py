@@ -6,12 +6,17 @@ import xarray as xr
 from .shapefiles import *
 from .extract import *
 from .util import remove_duplicates_list
-from .index_dailydata import (get_daily_index_season,
-                              year_daily_index_season)
+from .index_dailydata import (
+    get_daily_index_season,
+    year_daily_index_season
+)
 from .aggregate_dailydata import aggregate_daily_analysis
 from .zarrdata import get_zarr_daily_dataset
 from .netcdf import extract_netcdf_bbox
-from .geojson import get_user_geojson, geojson_polygons_points
+from .geojson import (
+    get_user_geojson,
+    geojson_polygons_points
+)
 
 def extract_rectangular_grid_dailydata(params, bbox=None):
     xr_data = get_zarr_daily_dataset(params)

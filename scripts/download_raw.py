@@ -3,10 +3,14 @@ import re
 import copy
 from .extract_data import *
 from .response import *
-from .util import (response_download_file,
-                   response_download_error)
-from .dates import (get_ncinfo_date,
-                    format_output_date)
+from .util import (
+    response_download_file,
+    response_download_error
+)
+from .dates import (
+    get_ncinfo_date,
+    format_output_date
+)
 from app.scripts._global import GLOBAL_CONFIG
 
 def download_rawdata(params):

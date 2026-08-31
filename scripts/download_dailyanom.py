@@ -3,14 +3,18 @@ import re
 import base64
 from .extract_dailyanom import *
 from .dates import get_ncinfo_date
-from .download_dailydata import (_get_info_dailydata, 
-                                 _get_varids_dailydata,
-                                 _get_dailydata_filename,
-                                 _format_date_dailydata)
+from .download_dailydata import (
+    _get_info_dailydata, 
+    _get_varids_dailydata,
+    _get_dailydata_filename,
+    _format_date_dailydata
+)
 from .download_dailyclim import _check_params_Poly
 from .response import *
-from .util import (response_download_file,
-                   response_download_error)
+from .util import (
+    response_download_file,
+    response_download_error
+)
 from app.scripts._cache import cache, hash_pamars_anom
 
 def download_analysis_dailyanom(params):

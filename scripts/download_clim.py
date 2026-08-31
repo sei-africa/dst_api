@@ -4,8 +4,10 @@ import base64
 import copy
 from .extract_clim import *
 from .response import *
-from .util import (response_download_file,
-                   response_download_error)
+from .util import (
+    response_download_file,
+    response_download_error
+)
 from app.scripts._global import GLOBAL_CONFIG
 from app.scripts._cache import cache, hash_pamars_clim
 

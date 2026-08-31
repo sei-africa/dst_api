@@ -10,10 +10,15 @@ from .util import remove_duplicates_list
 from .dates import format_output_date, get_ncinfo_date
 from .index_time import get_index_dates_dataset
 from .zarrdata import get_zarr_dataset
-from .geojson import get_user_geojson, geojson_polygons_points
-from .netcdf import (get_netcdf_data,
-                     aggregate_netcdf_data,
-                     extract_netcdf_bbox)
+from .geojson import (
+    get_user_geojson,
+    geojson_polygons_points
+)
+from .netcdf import (
+    get_netcdf_data,
+    aggregate_netcdf_data,
+    extract_netcdf_bbox
+)
 
 def extract_rectangular_grid_data(params, dataset, filename, bbox):
     if dataset['compute']:

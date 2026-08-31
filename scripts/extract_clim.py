@@ -7,11 +7,19 @@ from .extract import *
 from .zarrdata import get_zarr_dataset
 from .util import remove_duplicates_list
 from .index_clim import get_climatology_times_index
-from .shapefiles import (format_bbox_polygons,
-                         mask_polygons_xarray_dataArray,
-                         get_shapefiles_data)
-from .geojson import get_user_geojson, geojson_polygons_points
-from .aggregate_data import aggregate_climatology, aggregate_timeSeries
+from .shapefiles import (
+    format_bbox_polygons,
+    mask_polygons_xarray_dataArray,
+    get_shapefiles_data
+)
+from .geojson import (
+    get_user_geojson,
+    geojson_polygons_points
+)
+from .aggregate_data import (
+    aggregate_climatology,
+    aggregate_timeSeries
+)
 from app.scripts._global import GLOBAL_CONFIG
 
 def climatology_gridded_data(params, dataset, bbox=None, keep_DataArray=False):

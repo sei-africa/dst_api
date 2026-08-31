@@ -1,5 +1,8 @@
 import numpy as np
-from .dates import convert_strings_npdatetime64, aggregate_range_dates
+from .dates import (
+    convert_strings_npdatetime64,
+    aggregate_range_dates
+)
 
 def get_index_dates_series(times, time_res, start_date, end_date):
     date_range = [start_date, end_date]

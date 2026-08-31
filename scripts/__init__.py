@@ -26,10 +26,13 @@ from .download_dailydata import *
 from .download_dailyclim import *
 from .download_dailyanom import *
 from .aggregate_data import *
+from .aggregate_dataarray import *
 from .aggregate_dailydata import *
 from .aggregate_seasonal import *
 from .response import *
 from .anomaly import *
 from .compute_et0 import *
+from .spei_spatial import *
+from .spei_compute import *
 
 __all__ = [s for s in dir() if not s.startswith('_')]

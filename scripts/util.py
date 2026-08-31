@@ -74,7 +74,7 @@ def response_download_file(data, filename, mimetype):
     response.headers['API-Service'] = 'ENACTS Data Sharing Tool'
     return response
 
-def response_download_error(message, filename, code=422):
+def response_download_error(message, filename=None, code=422):
     response = make_response(jsonify({'message': message, 'status': -1}), code)
     response.mimetype = 'application/json'
     response.status_code = code
