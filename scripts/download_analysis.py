@@ -168,7 +168,11 @@ def _get_ncinfo_variable(out, params):
 
 def _get_analysis_filename(params):
     f1 = f"{params['analysis']}_{params['variable']}"
-    f2 = f"{params['temporalRes']}_{params['Date']}"
+    if params['gridded']:
+        f2 = f"{params['temporalRes']}_{params['Date']}"
+    else:
+        period = format_output_date(params)
+        f2 = f"{params['temporalRes']}_{period}"
     return f'{f1}_{f2}'
 
 def _analysis_extra_params(params):
