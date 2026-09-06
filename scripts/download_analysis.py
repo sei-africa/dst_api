@@ -31,9 +31,12 @@ def download_anomaly_data(params):
     filename = _get_analysis_filename(params)
     anom = get_anomaly_data(params)
     if anom['status'] == -1:
-        return response_download_error(
-            anom['message'], filename, 422
-        )
+        if params['webApp']:
+            return json.dumps(anom)
+        else:
+            return response_download_error(
+                anom['message'], filename, 422
+            )
 
     if params['gridded']:
         return _response_analysis_grid(anom['data'], params)
@@ -45,9 +48,12 @@ def download_spi_data(params):
     filename = _get_analysis_filename(params)
     spi = get_spi_data(params)
     if spi['status'] == -1:
-        return response_download_error(
-            spi['message'], filename, 422
-        )
+        if params['webApp']:
+            return json.dumps(spi)
+        else:
+            return response_download_error(
+                spi['message'], filename, 422
+            )
 
     if params['gridded']:
         return _response_analysis_grid(spi['data'], params)
@@ -67,16 +73,27 @@ def _response_anomaly_points(data_points, params):
         filename = f'{filename}.json'
         mimetype = 'application/json'
     else:
-        out_data = {'status': -1, 'message': 'Unknown output format'}
-        return response_download_error(out_data['message'], filename, 422)
+        out_data = {
+            'status': -1,
+            'message': 'Unknown output format'
+        }
+        return response_download_error(
+            out_data['message'], filename, 422
+        )
 
     params['httpMethod'] = params['httpMethod_0']
 
     if params['webApp']:
-        return json.dumps({'status': 0, 'data': out_data,
-                           'filename': filename, 'mimetype': mimetype})
+        return json.dumps({
+            'status': 0,
+            'data': out_data,
+            'filename': filename,
+            'mimetype': mimetype
+        })
     else:
-        return response_download_file(out_data, filename, mimetype)
+        return response_download_file(
+            out_data, filename, mimetype
+        )
 
 def _response_analysis_grid(out, params):
     filename = _get_analysis_filename(params)

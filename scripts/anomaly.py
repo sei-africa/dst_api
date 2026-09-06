@@ -7,11 +7,6 @@ from .download_raw import download_rawdata
 from app.scripts._cache import cache, hash_pamars_anom
 
 def get_anomaly_data(params):
-    # params['webApp'] = True
-    # params['httpMethod_0'] = params['httpMethod']
-    # params['httpMethod'] = 'POST'
-    # params['finalOutput'] = False
-
     cache_key = hash_pamars_anom(params)
     cached_data = cache.get(cache_key)
 

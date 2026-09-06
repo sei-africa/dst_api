@@ -5,8 +5,11 @@ import pandas as pd
 import xarray as xr
 
 from app.scripts._global import GLOBAL_CONFIG
-from app.scripts._cache import cache, hash_distr_pamars_spei
-
+from app.scripts._cache import (
+    cache,
+    hash_pamars_spei,
+    hash_distr_pamars_spei
+)
 from .zarrdata import get_zarr_dataset
 from .dates import convert_strings_npdatetime64
 from .shapefiles import get_shapefiles_data
@@ -33,31 +36,51 @@ from .aggregate_dataarray import xr_aggregate_data
 # )
 
 def get_spi_data(params):
-    if params['gridded']:
-        return get_spi_spatial_data(params)
-    else:
-        return None
+    cache_key = hash_pamars_spei(params)
+    spi_data = cache.get(cache_key)
 
-def get_spi_spatial_data(params):
+    if spi_data is None:
+        if params['gridded']:
+            distr_pars = get_spi_distribution_pars(params)
+            if distr_pars['status'] == -1: return distr_pars
+            try:
+                spi_data = _spi_spatial_data(distr_pars['data'], params)
+            except Exception as e:
+                return {'status': -1, 'message': str(e)}
+        else:
+            spi_data = None
+
+        cache.set(cache_key, spi_data)
+
+    return {'status': 0, 'data': spi_data}
+
+def get_spi_distribution_pars(params):
     cache_key = hash_distr_pamars_spei(params)
     distr_pars = cache.get(cache_key)
 
     if distr_pars is None:
         try:
             distr_pars = _spi_distribution_pars(params)
+            # distr_pars = distr_pars.compute()
             distr_pars = distr_pars.compute(
                 scheduler='single-threaded'
             )
         except Exception as e:
             return {'status': -1, 'message': str(e)}
+
         cache.set(cache_key, distr_pars)
 
-    try:
-        spi_data = _spi_spatial_data(distr_pars, params)
-    except Exception as e:
-        return {'status': -1, 'message': str(e)}
+    return {'status': 0, 'data': distr_pars}
 
-    return {'status': 0, 'data': spi_data}
+def check_spei_cache_status(params):
+    if isinstance(params['variable'], list):
+        params['variable'] = params['variable'][0]
+
+    cache_key = hash_distr_pamars_spei(params)
+    return {
+        'status': 0,
+        'cached': cache.has(cache_key)
+    }
 
 def _spi_spatial_data(distr_pars, params):
     spi_args = _format_spei_args(params)
@@ -165,7 +188,10 @@ def _spi_distribution_pars(params):
 
 def _format_spei_args(params):
     tscale = int(params['timeScale'])
-    timeres = str(params['temporalRes'])
+    if 'timeRes' in params:
+        timeres = str(params['timeRes'])
+    else:
+        timeres = str(params['temporalRes'])
     distribution = str(params.get('distribution', 'gamma'))
     if timeres == 'dekadal' and tscale > 1:
         raise ValueError('Time scale must be 1 for dekadal data')
