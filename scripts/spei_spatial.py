@@ -89,12 +89,16 @@ def spei_compute_params(
     )
     seasons = _season_index(data, time_res)
     shape, scale, pzero = xr.apply_ufunc(
-        _params_1d, data, seasons,
+        # _params_1d, data, seasons,
+        _params_nd, data, seasons,
         input_core_dims=[['time'], ['time']],
         output_core_dims=[
             ['season'], ['season'], ['season']
         ],
-        vectorize=True,
+        # _params_nd handles a complete spatial chunk at once.  xarray's
+        # vectorize=True calls a Python function once per grid cell, which is
+        # prohibitively expensive for large rasters.
+        vectorize=False,
         dask='parallelized',
         output_dtypes=[float, float, float],
         kwargs={
@@ -126,6 +130,113 @@ def spei_compute_params(
         tscale=tscale
     )
     return result
+
+def _params_nd(
+    values: np.ndarray,
+    seasons: np.ndarray,
+    frequency: int,
+    distribution: str,
+    min_non_na: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Fit every series in an xarray/Dask spatial block in one call.
+    Core dimensions are last, as required by ``apply_ufunc``.  Seasonal
+    selection and the common L-moment calculations are vectorized over all
+    cells in the block; only the rare constant-series correction needs a
+    small loop.
+    """
+    values = np.asarray(values, dtype=float)
+    seasons = np.asarray(seasons)
+    outer_shape = values.shape[:-1]
+    series = values.reshape(-1, values.shape[-1])
+    first = np.full((series.shape[0], frequency), np.nan)
+    second = np.full_like(first, np.nan)
+    pzero = np.full_like(first, np.nan)
+
+    if distribution not in ('gamma', 'zscore'):
+        raise ValueError(
+            "xarray implementation supports 'gamma' and 'zscore'"
+        )
+
+    for season in range(1, frequency + 1):
+        seasonal = series[:, seasons == season]
+        finite = np.isfinite(seasonal)
+        count = finite.sum(axis=1)
+        valid = count >= min_non_na
+        if not np.any(valid):
+            continue
+
+        slot = season - 1
+        if distribution == 'zscore':
+            # Explicit sums avoid warnings from nanmean/nanstd for empty rows.
+            total = np.where(finite, seasonal, 0.0).sum(axis=1)
+            mean = np.divide(total, count, out=np.full_like(total, np.nan), where=count > 0)
+            centered = np.where(finite, seasonal - mean[:, None], 0.0)
+            variance = np.divide(
+                (centered * centered).sum(axis=1), count - 1,
+                out=np.full_like(total, np.nan), where=count > 1
+            )
+            first[valid, slot] = mean[valid]
+            second[valid, slot] = np.sqrt(variance[valid])
+            continue
+
+        pzero[valid, slot] = (
+            np.count_nonzero(finite & (seasonal == 0), axis=1)[valid]
+            / count[valid]
+        )
+        positive = np.where(finite & (seasonal > 0), seasonal, np.nan)
+        npositive = np.count_nonzero(np.isfinite(positive), axis=1)
+        fit = valid & (npositive >= min_non_na) & (npositive >= 2)
+        if not np.any(fit):
+            continue
+
+        ordered = np.sort(positive[fit], axis=1)
+        n = npositive[fit]
+        # Match _gamma_lmoments' deterministic correction for a constant row.
+        constant = ordered[:, 0] == ordered[np.arange(ordered.shape[0]), n - 1]
+        for size in np.unique(n[constant]):
+            rows = constant & (n == size)
+            jitter = np.sort(
+                np.random.default_rng(0).uniform(0.1, 0.5, int(size))
+            )
+            ordered[rows, :size] += jitter
+
+        rank = np.arange(ordered.shape[1])[None, :]
+        present = rank < n[:, None]
+        clean = np.where(present, ordered, 0.0)
+        l1 = clean.sum(axis=1) / n
+        weights = np.divide(
+            rank, n[:, None] - 1,
+            out=np.zeros_like(clean), where=present
+        )
+        b1 = (weights * clean).sum(axis=1) / n
+        l2 = 2 * b1 - l1
+        good = (
+            np.isfinite(l1) & np.isfinite(l2)
+            & (l1 > 0) & (l2 > 0) & (l2 < l1)
+        )
+        tau = np.divide(l2, l1, out=np.zeros_like(l1), where=good)
+        shape = np.full_like(l1, np.nan)
+        low = good & (tau < 0.5)
+        z = np.pi * tau[low] ** 2
+        shape[low] = (1 - 0.3080 * z) / (
+            z - 0.05812 * z**2 + 0.01765 * z**3
+        )
+        high = good & ~low
+        z = 1 - tau[high]
+        shape[high] = z * (0.7213 - 0.5947 * z) / (
+            1 - 2.1817 * z + 1.2113 * z**2
+        )
+        fit_rows = np.flatnonzero(fit)
+        first[fit_rows[good], slot] = shape[good]
+        second[fit_rows[good], slot] = l1[good] / shape[good]
+
+    output_shape = outer_shape + (frequency,)
+    return (
+        first.reshape(output_shape),
+        second.reshape(output_shape),
+        pzero.reshape(output_shape)
+    )
 
 def _season_index(
     data: xr.DataArray,

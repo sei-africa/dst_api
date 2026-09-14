@@ -344,7 +344,7 @@ def aggregate_range_dates(out_res, in_res,
 
     return seq_date
 
-def convert_strings_npdatetime64(times, time_res, sep=''):
+def convert_strings_npdatetime64(times, time_res, sep='', mon_day=16):
     if type(times) is not list:
         times = [times]
 
@@ -368,7 +368,7 @@ def convert_strings_npdatetime64(times, time_res, sep=''):
             d = d.replace(day = (dk - 1) * 10 + 6)
 
         if time_res == 'monthly':
-            d = d.replace(day = 16)
+            d = d.replace(day = mon_day)
 
         # dates += [np.datetime64(d)]
         dates += [d]

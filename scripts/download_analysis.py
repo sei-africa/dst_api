@@ -4,7 +4,8 @@ import base64
 import numpy as np
 from .response import *
 from .anomaly import get_anomaly_data
-from .spei_compute import get_spi_data
+# from .spei_compute import get_spi_data_sp
+from .spei_wrapper import get_spi_data
 from .util import (
     response_download_file,
     response_download_error
@@ -46,6 +47,7 @@ def download_anomaly_data(params):
 def download_spi_data(params):
     params = _analysis_extra_params(params)
     filename = _get_analysis_filename(params)
+    # spi = get_spi_data_sp(params)
     spi = get_spi_data(params)
     if spi['status'] == -1:
         if params['webApp']:
