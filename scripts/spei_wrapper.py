@@ -11,7 +11,12 @@ from app.scripts._cache import (
 
 from .zarrdata import get_zarr_dataset
 from .dates import convert_strings_npdatetime64
-from .shapefiles import get_shapefiles_data
+from .shapefiles import (
+    get_shapefiles_data,
+    format_bbox_polygons,
+    extract_polygons_griddata
+)
+from .netcdf import extract_netcdf_bbox
 
 from .spei_functions import *
 from .aggregate_dataarray import xr_aggregate_data
@@ -25,6 +30,12 @@ from .aggregate_dataarray import xr_aggregate_data
 #     xr_aggregate_data,
 # )
 # from app.dst_api.scripts.spei_functions import *
+# from app.dst_api.scripts.shapefiles import (
+#     get_shapefiles_data,
+#     format_bbox_polygons,
+#     extract_polygons_griddata
+# )
+# from app.dst_api.scripts.netcdf import extract_netcdf_bbox
 
 ########
 
@@ -139,8 +150,48 @@ def _spei_spatial_data(distr_pars, params):
             else:
                 shpObj['polys'] = shpObj['polys'][0]
 
-        # here shp extraction
-        return _spei_gridded_data(spei)
+        np_spei = {
+            'lon': spei['lon'].values,
+            'lat': spei['lat'].values,
+            'data': np.squeeze(spei.values)
+        }
+        info_spei = {
+            'date': params['Date'],
+            'varid': spei.name,
+            'long_name': spei.attrs['long_name'],
+            'units': spei.attrs['units']
+        }
+
+        if multipolygons:
+            out_spei = []
+            for poly in shpObj['polys']:
+                bbox = format_bbox_polygons(
+                    shpObj['bbox'],
+                    params['shpField'],
+                    poly
+                )
+                ret = extract_netcdf_bbox(np_spei, bbox)
+                ext = extract_polygons_griddata(
+                    ret,
+                    shpObj['shp'],
+                    params['shpField'],
+                    poly
+                )
+                ext['poly'] = poly
+                ext = ext | info_spei
+                out_spei += [_np_spei_gridded_data(ext)]
+        else:
+            out = extract_polygons_griddata(
+                np_spei,
+                shpObj['shp'],
+                params['shpField'],
+                shpObj['polys']
+            )
+            out['poly'] = shpObj['polys']
+            out = out | info_spei
+            out_spei = _np_spei_gridded_data(out)
+
+        return out_spei
 
 def _spei_distribution_pars(params):
     precip, et0 = _get_spei_data(params)
@@ -187,6 +238,30 @@ def _spei_gridded_data(spei):
     out['VariableVarId'] = spei.name
     out['VariableName'] = spei.attrs['long_name']
     out['VariableUnits'] = spei.attrs['units']
+    return out
+
+def _np_spei_gridded_data(np_spei):
+    out = {}
+    out['Date'] = np_spei['date']
+    out['Latitude'] = np.round(np_spei['lat'], 6).tolist()
+    out['Longitude'] = np.round(np_spei['lon'], 6).tolist()
+    out['Dimensions'] = {
+        'Latitude': len(np_spei['lat']),
+        'Longitude': len(np_spei['lon'])
+    }
+
+    miss = -9999.0
+    out['Missing'] = miss
+    data_filled = np.ma.filled(np_spei['data'], miss)
+    data_filled = np.nan_to_num(
+        data_filled, nan=miss, posinf=miss, neginf=miss
+    )
+    out['Data'] = data_filled.tolist()
+
+    out['VariableVarId'] = np_spei['varid']
+    out['VariableName'] = np_spei['long_name']
+    out['VariableUnits'] = np_spei['units']
+    out['Name'] = np_spei['poly']
     return out
 
 def _get_spei_data(params):

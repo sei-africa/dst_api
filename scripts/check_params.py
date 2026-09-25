@@ -256,8 +256,9 @@ def checkParamsRequest_analysis(params):
         tseries = checkParamsRequest_rawdata(params)
         if tseries['status'] == -1: return tseries
         params = tseries['params']
+        params['outFormat_0'] = params['outFormat']
         params['webApp'] = True
-        params['finalOutput'] = False
+        params['finalOutput'] = True
     elif params['analysis'] == 'spei':
         params['variable'] = GLOBAL_CONFIG['datasets'][params['dataset']]['variables']['rainfall']
         return {'status': -1, 'message': 'Not implemented yet'}

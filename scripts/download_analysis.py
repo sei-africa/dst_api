@@ -195,10 +195,14 @@ def _get_analysis_filename(params):
     return f'{f1}_{f2}'
 
 def _analysis_extra_params(params):
-    params['httpMethod_0'] = params['httpMethod']
-    pars = {'webApp': True, 'finalOutput': False}
+    pars = {
+        'webApp': True,
+        'finalOutput': False,
+        'outFormat_0': params['outFormat'],
+        'httpMethod_0': params['httpMethod']
+    }
     params = pars | params
-    params['httpMethod'] = 'POST'
+    # params['httpMethod'] = 'POST'
     return params
 
 ######
