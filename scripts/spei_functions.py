@@ -2,47 +2,30 @@ from __future__ import annotations
 from typing import Mapping
 from collections.abc import Mapping
 import calendar
+import os
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 import numpy as np
 import xarray as xr
-from scipy import stats
-
-def SPI_computation_wrapper(
-    precip: xr.DataArray,
-    params: Mapping[str, object]
-) -> xr.DataArray:
-    spi_args = SPEI_Wrapper_setup(precip, params)
-    data = SPEI_Aggregate_data(
-        precip, spi_args['tscale']
-    )
-    fitted = SPEI_Compute_params(
-        data,
-        spi_args['tscale'],
-        spi_args['frequency'],
-        spi_args['distribution'],
-        min_non_na=5
-    )
-    spi = SPEI_Computation_ts(
-        data,
-        fitted,
-        spi_args['tscale'],
-        spi_args['frequency'],
-        spi_args['distribution'],
-        spi_args['time_res'],
-        'spi'
-    )
-    start = spi_args['tscale'] - 1
-    return spi.isel(time=slice(start, None))
+from scipy import special, stats
 
 def SPEI_computation_wrapper(
     precip: xr.DataArray,
-    etp: xr.DataArray,
-    params: Mapping[str, object]
+    params: Mapping[str, object],
+    etp: xr.DataArray | None = None
 ) -> xr.DataArray:
     spei_args = SPEI_Wrapper_setup(precip, params)
-    precip, etp = xr.align(precip, etp, join='inner')
-    data = SPEI_Aggregate_data(
-        precip - etp, spei_args['tscale']
-    )
+    if params['analysis'] == 'spei':
+        precip, etp = xr.align(precip, etp, join='inner')
+        data = SPEI_Aggregate_data(
+            precip - etp, spei_args['tscale']
+        )
+    elif params['analysis'] == 'spi':
+        data = SPEI_Aggregate_data(
+            precip, spei_args['tscale']
+        )
+    else:
+        return None
+
     fitted = SPEI_Compute_params(
         data,
         spei_args['tscale'],
@@ -57,7 +40,7 @@ def SPEI_computation_wrapper(
         spei_args['frequency'],
         spei_args['distribution'],
         spei_args['time_res'],
-        'spei'
+        params['analysis']
     )
     start = spei_args['tscale'] - 1
     return spei.isel(time=slice(start, None))
@@ -119,7 +102,8 @@ def SPEI_Compute_params(
     tscale: int = 1,
     frequency: int = 12,
     distribution: str = 'gamma',
-    min_non_na: int = 5
+    min_non_na: int = 5,
+    n_jobs: int | None = None
 ) -> np.ndarray:
     values = _dataarray_values(data)
     if frequency < 1:
@@ -132,43 +116,272 @@ def SPEI_Compute_params(
     eligible = np.flatnonzero(
         np.sum(~np.isnan(values), axis=0) >= min_non_na
     )
-    for k in range(frequency):
-        rows = np.arange(
-            k + tscale - 1,
-            values.shape[0],
-            frequency
+
+    if distribution in ('peasron3', 'llogistic'):
+        _store_optimizer_params_parallel(
+            params, values, eligible, tscale, frequency,
+            distribution, min_non_na, n_jobs
         )
-        if rows.size == 0:
-            continue
-        for j in eligible:
-            sample = values[rows, j]
-            sample = sample[~np.isnan(sample)]
-            if sample.size < min_non_na:
+        return params
+    else:
+        for k in range(frequency):
+            rows = np.arange(
+                k + tscale - 1,
+                values.shape[0],
+                frequency
+            )
+            if rows.size == 0:
                 continue
+
             if distribution == 'zscore':
-                params[k, j] = {
-                    'mean': float(np.mean(sample)),
-                    'sd': float(np.std(sample, ddof=1))
-                }
+                for start in range(0, eligible.size, 32_768):
+                    columns = eligible[start:start + 32_768]
+                    _store_zscore_params(
+                        params[k], values[np.ix_(rows, columns)],
+                        columns, min_non_na
+                    )
                 continue
-            pzero = (
-                float(np.mean(sample == 0))
-                if distribution in ('gamma', 'peasron3')
-                else None
-            )
-            fit_values = (
-                sample[sample > 0]
-                if distribution in ('gamma', 'peasron3')
-                else sample
-            )
-            fitted = _fit_distribution(
+
+            if distribution == 'gamma':
+                # Chunking caps temporary memory while retaining fast vectorized
+                # operations over tens of thousands of grid cells at a time.
+                for start in range(0, eligible.size, 32_768):
+                    columns = eligible[start:start + 32_768]
+                    _store_gamma_params(
+                        params[k], values[np.ix_(rows, columns)],
+                        columns, min_non_na
+                    )
+                continue
+
+            for j in eligible:
+                sample = values[rows, j]
+                sample = sample[~np.isnan(sample)]
+                if sample.size < min_non_na:
+                    continue
+
+                fitted = _fit_distribution(
+                    sample, distribution, min_non_na
+                )
+                if fitted is not None:
+                    params[k, j] = fitted
+        return params
+
+def _store_optimizer_params_parallel(
+    params: np.ndarray,
+    values: np.ndarray,
+    eligible: np.ndarray,
+    tscale: int,
+    frequency: int,
+    distribution: str,
+    min_non_na: int,
+    n_jobs: int | None
+) -> None:
+    """
+    Run independent SciPy optimizer fits in a reusable process pool.
+    """
+    workers = (
+        min(8, os.cpu_count() or 1)
+        if n_jobs is None
+        else int(n_jobs)
+    )
+    if workers < 1:
+        raise ValueError('n_jobs must be at least 1')
+    if workers == 1 or eligible.size == 0:
+        for k in range(frequency):
+            rows = np.arange(k + tscale - 1, values.shape[0], frequency)
+            if rows.size:
+                columns, fitted = _fit_optimizer_block(
+                    values[np.ix_(rows, eligible)], eligible,
+                    distribution, min_non_na
+                )
+                _merge_fitted_params(params[k], columns, fitted)
+        return
+
+    # About eight jobs per worker balances uneven optimizer runtimes while
+    # avoiding millions of tiny futures on large rasters.
+    chunk_size = min(
+        4096,
+        max(256, (eligible.size + workers * 8 - 1) // (workers * 8))
+    )
+    with ProcessPoolExecutor(max_workers=workers) as executor:
+        for k in range(frequency):
+            rows = np.arange(k + tscale - 1, values.shape[0], frequency)
+            if rows.size == 0:
+                continue
+            starts = iter(range(0, eligible.size, chunk_size))
+            pending = {}
+
+            def submit_next() -> bool:
+                try:
+                    start = next(starts)
+                except StopIteration:
+                    return False
+                columns = eligible[start:start + chunk_size]
+                future = executor.submit(
+                    _fit_optimizer_block,
+                    values[np.ix_(rows, columns)], columns,
+                    distribution, min_non_na
+                )
+                pending[future] = None
+                return True
+
+            for _ in range(workers * 2):
+                if not submit_next():
+                    break
+            while pending:
+                done, _ = wait(pending, return_when=FIRST_COMPLETED)
+                for future in done:
+                    del pending[future]
+                    columns, fitted = future.result()
+                    _merge_fitted_params(params[k], columns, fitted)
+                    submit_next()
+
+def _fit_optimizer_block(
+    seasonal: np.ndarray,
+    columns: np.ndarray,
+    distribution: str,
+    min_non_na: int
+) -> tuple[np.ndarray, list[dict[str, float] | None]]:
+    """Worker entry point for a block of independent optimizer fits."""
+    fitted = []
+    for index in range(seasonal.shape[1]):
+        sample = seasonal[:, index]
+        sample = sample[~np.isnan(sample)]
+        result = None
+        if sample.size >= min_non_na:
+            if distribution == 'peasron3':
+                pzero = float(np.mean(sample == 0))
+                fit_values = sample[sample > 0]
+            else:
+                pzero = None
+                fit_values = sample
+            result = _fit_distribution(
                 fit_values, distribution, min_non_na
             )
-            if fitted is not None:
-                if pzero is not None:
-                    fitted['pzero'] = pzero
-                params[k, j] = fitted
-    return params
+            if result is not None and pzero is not None:
+                result['pzero'] = pzero
+        fitted.append(result)
+    return columns, fitted
+
+def _merge_fitted_params(
+    target: np.ndarray,
+    columns: np.ndarray,
+    fitted: list[dict[str, float] | None]
+) -> None:
+    for column, result in zip(columns, fitted):
+        if result is not None:
+            target[column] = result
+
+def _store_zscore_params(
+    target: np.ndarray,
+    seasonal: np.ndarray,
+    columns: np.ndarray,
+    min_non_na: int
+) -> None:
+    """
+    Fit all z-score columns with NumPy instead of a Python fit loop.
+    """
+    present = ~np.isnan(seasonal)
+    count = present.sum(axis=0)
+    valid = count >= min_non_na
+    if not np.any(valid):
+        return
+    clean = np.where(present, seasonal, 0.0)
+    mean = np.divide(
+        clean.sum(axis=0), count,
+        out=np.full(columns.size, np.nan), where=count > 0
+    )
+    centered = np.where(present, seasonal - mean[None, :], 0.0)
+    variance = np.divide(
+        (centered * centered).sum(axis=0), count - 1,
+        out=np.full(columns.size, np.nan), where=count > 1
+    )
+    sd = np.sqrt(variance)
+    for index in np.flatnonzero(valid):
+        target[columns[index]] = {
+            'mean': float(mean[index]),
+            'sd': float(sd[index])
+        }
+
+def _store_gamma_params(
+    target: np.ndarray,
+    seasonal: np.ndarray,
+    columns: np.ndarray,
+    min_non_na: int
+) -> None:
+    """
+    Fit fixed-location gamma distributions for a complete spatial row.
+
+    ``scipy.stats.gamma.fit(..., floc=0)`` solves the same likelihood
+    equation separately for every series.  Solving that equation in arrays
+    removes thousands of Python calls and scalar root-finder invocations.
+    """
+    present = ~np.isnan(seasonal)
+    count = present.sum(axis=0)
+    valid = count >= min_non_na
+    if not np.any(valid):
+        return
+
+    pzero = np.divide(
+        np.count_nonzero(present & (seasonal == 0), axis=0),
+        count,
+        out=np.zeros(columns.size, dtype=float),
+        where=count > 0
+    )
+    positive = np.isfinite(seasonal) & (seasonal > 0)
+    npositive = positive.sum(axis=0)
+    fit = valid & (npositive >= min_non_na)
+    if not np.any(fit):
+        return
+
+    selected = seasonal[:, fit]
+    selected_positive = positive[:, fit]
+    n = npositive[fit].astype(float)
+    total = np.where(selected_positive, selected, 0.0).sum(axis=0)
+    logs = np.zeros_like(selected)
+    np.log(selected, out=logs, where=selected_positive)
+    log_total = logs.sum(axis=0)
+    mean = total / n
+    equation = np.log(mean) - log_total / n
+
+    # A constant positive series has equation == 0 and no finite MLE.  Keep
+    # the previous deterministic jitter behavior for this rare case.
+    regular = np.isfinite(equation) & (equation > 1e-14)
+    shape = np.full(equation.shape, np.nan)
+    if np.any(regular):
+        e = equation[regular]
+        estimate = (3.0 - e + np.sqrt((e - 3.0) ** 2 + 24.0 * e)) / (
+            12.0 * e
+        )
+        for _ in range(12):
+            step = (
+                np.log(estimate) - special.digamma(estimate) - e
+            ) / (1.0 / estimate - special.polygamma(1, estimate))
+            updated = estimate - step
+            updated = np.where(updated > 0, updated, estimate / 2.0)
+            if np.all(np.abs(updated - estimate) <= 1e-12 * updated):
+                estimate = updated
+                break
+            estimate = updated
+        shape[regular] = estimate
+
+    fit_indices = np.flatnonzero(fit)
+    for local_index in np.flatnonzero(~regular):
+        sample = selected[selected_positive[:, local_index], local_index]
+        fitted = _fit_distribution(sample, 'gamma', min_non_na)
+        if fitted is not None:
+            shape[local_index] = fitted['shape']
+            mean[local_index] = fitted['shape'] * fitted['scale']
+
+    fitted_ok = np.isfinite(shape) & (shape > 0)
+    for local_index in np.flatnonzero(fitted_ok):
+        index = fit_indices[local_index]
+        target[columns[index]] = {
+            'shape': float(shape[local_index]),
+            'loc': 0.0,
+            'scale': float(mean[local_index] / shape[local_index]),
+            'pzero': float(pzero[index])
+        }
 
 def SPEI_Computation_ts(
     data_aggr: xr.DataArray,

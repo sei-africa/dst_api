@@ -70,16 +70,6 @@ def get_spi_distribution_pars_sp(params):
 
     return {'status': 0, 'data': distr_pars}
 
-def check_spei_cache_status(params):
-    if isinstance(params['variable'], list):
-        params['variable'] = params['variable'][0]
-
-    cache_key = hash_distr_pamars_spei(params)
-    return {
-        'status': 0,
-        'cached': cache.has(cache_key)
-    }
-
 def _spi_spatial_data(distr_pars, params):
     spi_args = _format_spei_args(params)
     precip, _ = _get_spei_data(params)

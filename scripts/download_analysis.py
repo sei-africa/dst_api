@@ -5,7 +5,7 @@ import numpy as np
 from .response import *
 from .anomaly import get_anomaly_data
 # from .spei_compute import get_spi_data_sp
-from .spei_wrapper import get_spi_data
+from .spei_wrapper import get_spei_data
 from .util import (
     response_download_file,
     response_download_error
@@ -19,9 +19,7 @@ from .download_raw import _get_download_dataset
 def download_analysis(params):
     if params['analysis'] == 'anomaly':
         return download_anomaly_data(params)
-    elif params['analysis'] == 'spi':
-        return download_spi_data(params)
-    elif params['analysis'] == 'spei':
+    elif params['analysis'] in ['spi', 'spei']:
         return download_spei_data(params)
     else:
         out = {'status': -1, 'message': 'Unknown'}
@@ -42,29 +40,29 @@ def download_anomaly_data(params):
     if params['gridded']:
         return _response_analysis_grid(anom['data'], params)
     else:
-        return _response_anomaly_points(anom['data'], params)
+        return _response_analysis_points(anom['data'], params)
 
-def download_spi_data(params):
+def download_spei_data(params):
     params = _analysis_extra_params(params)
+    params['fullYearTS'] = True
     filename = _get_analysis_filename(params)
-    # spi = get_spi_data_sp(params)
-    spi = get_spi_data(params)
-    if spi['status'] == -1:
+    # spei = get_spi_data_sp(params)
+    spei = get_spei_data(params)
+    if spei['status'] == -1:
         if params['webApp']:
-            return json.dumps(spi)
+            return json.dumps(spei)
         else:
             return response_download_error(
-                spi['message'], filename, 422
+                spei['message'], filename, 422
             )
 
     if params['gridded']:
-        return _response_analysis_grid(spi['data'], params)
+        return _response_analysis_grid(spei['data'], params)
     else:
-        return _response_anomaly_points(spi['data'], params)
+        return _response_analysis_points(spei['data'], params)
 
-def _response_anomaly_points(data_points, params):
-    period = format_output_date(params)
-    filename = f"anomaly_{params['variable']}_{params['temporalRes']}_{period}"
+def _response_analysis_points(data_points, params):
+    filename = _get_analysis_filename(params)
 
     if params['outFormat_0'] == 'CSV-CDT-Format':
         out_data = response_anomaly_points_cdt(data_points)
@@ -179,14 +177,22 @@ def _format_analysis_grid(out):
     return tmp
 
 def _get_ncinfo_variable(out, params):
-    dataset = _get_download_dataset(params)
+    tmp_params = params.copy()
+    if tmp_params['analysis'] in ['spi', 'spei']:
+        tmp_params['variable'] = tmp_params['variable'][0]
+
+    dataset = _get_download_dataset(tmp_params)
     dataset['name'] = out['VariableName']
     dataset['units'] = out['VariableUnits']
     dataset['missval'] = out['Missing']
     return dataset
 
 def _get_analysis_filename(params):
-    f1 = f"{params['analysis']}_{params['variable']}"
+    if params['analysis'] in ['spi', 'spei']:
+        f1 = params['analysis']
+    else:
+        f1 = f"{params['analysis']}_{params['variable']}"
+
     if params['gridded']:
         f2 = f"{params['temporalRes']}_{params['Date']}"
     else:
@@ -202,11 +208,4 @@ def _analysis_extra_params(params):
         'httpMethod_0': params['httpMethod']
     }
     params = pars | params
-    # params['httpMethod'] = 'POST'
     return params
-
-######
-
-def download_spei_data(params):
-    out = {'status': -1, 'message': 'SPEI not implemented yet', 'filename': 'Unknown'}
-    return json.dumps(out)

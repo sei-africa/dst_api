@@ -32,7 +32,9 @@ from .aggregate_seasonal import *
 from .response import *
 from .anomaly import *
 from .compute_et0 import *
-from .spei_spatial import *
-from .spei_compute import *
+# from .spei_spatial import *
+# from .spei_compute import *
+from .spei_wrapper import *
+from .spei_functions import *
 
 __all__ = [s for s in dir() if not s.startswith('_')]

@@ -240,6 +240,12 @@ def _get_varids_dailydata(params):
             params['varNames'] = [defvar['minimum_temperature'],
                                   defvar['maximum_temperature']]
         return {'status': 0, 'params': params}
+    elif params['variable'] == 'min_temperature':
+        params['varNames'] = [defvar['minimum_temperature']]
+        return {'status': 0, 'params': params}
+    elif params['variable'] == 'max_temperature':
+        params['varNames'] = [defvar['maximum_temperature']]
+        return {'status': 0, 'params': params}
     elif params['variable'] == 'rainfall':
         params['varNames'] = [defvar['rainfall']]
         return {'status': 0, 'params': params}

@@ -117,6 +117,18 @@ def aggregate_daily_analysis(xr_ds, params, index, nb_days):
             don = xr.where(t_diff > 0, t_diff, 0)
             don = don.sum(dim='time', skipna=True)
 
+    if params['variable'] in ['min_temperature', 'max_temperature']:
+        if params['seasParams'] == 'seasAvg':
+            don = xr_ds.mean(dim='time', skipna=True)
+
+        if params['seasParams'] == 'NumCD':
+            cold = xr_ds < params['defThres']
+            don = cold.sum(dim='time', skipna=True)
+
+        if params['seasParams'] == 'NumHD':
+            hot = xr_ds >= params['defThres']
+            don = hot.sum(dim='time', skipna=True)
+
     return don.where(xr_frac >= params['minFrac'], np.nan)
 
 def count_spells_1d(x, spell='dry', thres=1.0, spell_len=7):
