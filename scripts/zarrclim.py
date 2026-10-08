@@ -1,14 +1,26 @@
 import os
 import xarray as xr
+import zarr
 from .extract_clim import climatology_gridded_data
 from app.scripts._global import GLOBAL_CONFIG
 
-def compute_some_climatogies(clim):
-    params = {'dataset': None, 'temporalRes': None, 'variable': None,
-              'geomExtract': 'original', 'climFunction': None,
-              'startYear': 1991, 'endYear': 2020, 'minYear': 30,
-               'seasLength': 3, 'daysWindow': 0, 'climDate': None,
-              'gridded': True, 'fullYear': True}
+def compute_some_climatogies(clim, overwrite=False):
+    params = {
+        'dataset': None,
+        'temporalRes': None,
+        'variable': None,
+        'geomExtract': 'original',
+        'climFunction': None,
+        'startYear': 1991,
+        'endYear': 2020,
+        'minYear': 30,
+        'seasLength': 3,
+        'daysWindow': 0,
+        'climDate': None,
+        'gridded': True,
+        'fullYear': True,
+    }
+    compute_clim = False
 
     if clim == 'mean-stdev':
         params['climFunction'] = clim
@@ -18,14 +30,14 @@ def compute_some_climatogies(clim):
         params['precentileValue'] = [5, 25, 50, 75, 95]
         ex_key = 'quantile'
     else:
-        print('Unknown climatology function.')
-        return None
+        raise ValueError('Unknown climatology function.')
 
     datasets = GLOBAL_CONFIG['datasets']
     clim_dir = GLOBAL_CONFIG['climatology']
     zarr_dir = os.path.join(clim_dir['zarr_dir'], clim)
     if not os.path.exists(zarr_dir):
         os.makedirs(zarr_dir)
+        compute_clim = True
 
     dataset_var = []
     for d in datasets:
@@ -39,10 +51,11 @@ def compute_some_climatogies(clim):
         zarr_path = os.path.join(zarr_dir, dset[0], dset[1], dset[2])
         if not os.path.exists(zarr_path):
             os.makedirs(zarr_path)
+            compute_clim = True
 
         if datasets[dset[0]][dset[1]]['netcdf'][dset[2]]['compute']:
-           in_data = datasets[dset[0]][dset[1]]['netcdf'][dset[2]]['input']
-           zarr_chunks = datasets[dset[0]][in_data]['chunks']
+            in_data = datasets[dset[0]][dset[1]]['netcdf'][dset[2]]['input']
+            zarr_chunks = datasets[dset[0]][in_data]['chunks']
         else:
             zarr_chunks = datasets[dset[0]][dset[1]]['chunks']
 
@@ -57,15 +70,25 @@ def compute_some_climatogies(clim):
         dataset = datasets[params['dataset']][params['temporalRes']]
         dataset = dataset['netcdf'][params['variable']]
 
-        print(f'Compute "{clim}" climatology for {dset[0]} > {dset[1]} > {dset[2]}')
-        xr_clim = climatology_gridded_data(params, dataset, keep_DataArray=True)
-        xr_clim = xr_clim.chunk(chunks=zarr_chunks)
-        xr_clim.to_zarr(
-            store=zarr_path,
-            mode='w',
-            consolidated=False,
-            zarr_format=3
-        )
+        if not compute_clim:
+            try:
+                zarr_exist = zarr.open(zarr_path, mode='r')
+                compute_clim = overwrite
+            except Exception as e:
+                compute_clim = True
+
+        if compute_clim:
+            print(f'Compute "{clim}" climatology for {dset[0]} > {dset[1]} > {dset[2]}')
+            xr_clim = climatology_gridded_data(params, dataset, keep_DataArray=True)
+            xr_clim = xr_clim.chunk(chunks=zarr_chunks)
+            xr_clim.to_zarr(
+                store=zarr_path,
+                mode='w',
+                consolidated=False,
+                zarr_format=3
+            )
+        else:
+            print(f'Climatology: "{clim}" for {dset[0]} > {dset[1]} > {dset[2]} exists')
 
     print('Computing climatology and conversion to zarr done!')
 
