@@ -310,10 +310,20 @@ def _get_info_dailydata(params):
             info['prec'] = 'integer'
         else:
             return None
-    elif params['variable'] == 'temperature':
+    elif params['variable'] in [
+        'temperature',
+        'min_temperature',
+        'max_temperature'
+    ]:
         if params['seasParams'] == 'MeanTemp':
             info['out_varid'] = 'tmean'
             info['name'] = 'Mean temperature'
+            info['units'] = '°C'
+            info['prec'] = 'float'
+        elif params['seasParams'] == 'seasAvg':
+            info['out_varid'] = params['varNames'][0]
+            var = info['out_varid'].upper()
+            info['name'] = f"{var} Seasonal Average"
             info['units'] = '°C'
             info['prec'] = 'float'
         elif params['seasParams'] == 'MinTemp':

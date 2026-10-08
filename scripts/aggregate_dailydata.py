@@ -84,7 +84,14 @@ def aggregate_daily_analysis(xr_ds, params, index, nb_days):
                 }
             )
 
-    if params['variable'] == 'temperature':
+    if params['variable'] in [
+        'temperature',
+        'min_temperature',
+        'max_temperature'
+    ]:
+        if params['seasParams'] == 'seasAvg':
+            don = xr_ds.mean(dim='time', skipna=True)
+
         if params['seasParams'] == 'MinTemp':
             don = xr_ds.mean(dim='time', skipna=True)
 
@@ -116,18 +123,6 @@ def aggregate_daily_analysis(xr_ds, params, index, nb_days):
             t_diff = xr_ds - params['defTempBase']
             don = xr.where(t_diff > 0, t_diff, 0)
             don = don.sum(dim='time', skipna=True)
-
-    if params['variable'] in ['min_temperature', 'max_temperature']:
-        if params['seasParams'] == 'seasAvg':
-            don = xr_ds.mean(dim='time', skipna=True)
-
-        if params['seasParams'] == 'NumCD':
-            cold = xr_ds < params['defThres']
-            don = cold.sum(dim='time', skipna=True)
-
-        if params['seasParams'] == 'NumHD':
-            hot = xr_ds >= params['defThres']
-            don = hot.sum(dim='time', skipna=True)
 
     return don.where(xr_frac >= params['minFrac'], np.nan)
 
