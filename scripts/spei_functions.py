@@ -31,7 +31,8 @@ def SPEI_computation_wrapper(
         spei_args['tscale'],
         spei_args['frequency'],
         spei_args['distribution'],
-        min_non_na=5
+        min_non_na=5,
+        n_jobs=params.get('n_jobs')
     )
     spei = SPEI_Computation_ts(
         data,

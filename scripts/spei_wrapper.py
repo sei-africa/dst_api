@@ -356,7 +356,10 @@ def _spei_points_data(params):
         raise ValueError('Unknown temporal resolution')
 
     precip, et0 = _get_spei_ts_data(params)
+    params['n_jobs'] = 1
     spei = SPEI_computation_wrapper(precip, params, et0)
+    if spei is None:
+        raise ValueError('Unknown analysis')
     spei = spei.sel(time=slice(dates_range[0], dates_range[1]))
 
     out = {}
