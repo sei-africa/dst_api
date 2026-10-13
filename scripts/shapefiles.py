@@ -79,10 +79,32 @@ def _get_geojson_polygons(shpfile):
     shp_obj = read_shapefile_polygons(shpfile)
     if shp_obj['status'] == -1: return shp_obj
 
-    geojson = shp_obj['shp'].to_json(to_wgs84=True)
-    fields = shp_obj['shp'].columns.tolist()
+    shp = shp_obj['shp']
+    date_columns = (
+        shp
+        .select_dtypes(include=["datetime64"])
+        .columns
+    )
+    for column in date_columns:
+        shp[column] = pd.Series(
+            [
+                value.isoformat()
+                if pd.notna(value)
+                else None
+                for value in shp[column]
+            ],
+            index=shp.index,
+            dtype=object,
+        )
+
+    geojson = shp.to_json(to_wgs84=True, default=str)
+    fields = shp.columns.tolist()
     fields.remove('geometry')
-    return {'status': 0, 'fields': fields, 'geojson': geojson}
+    return {
+        'status': 0,
+        'fields': fields,
+        'geojson': geojson
+    }
 
 def get_defaut_polygons(shpfile):
     shp_path = get_shapefiles_path(shpfile)
