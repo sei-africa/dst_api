@@ -1,10 +1,59 @@
 import os
+import threading
+import time
 import numpy as np
 import xarray as xr
 import datetime
 from app.scripts._global import GLOBAL_CONFIG
 
-def get_datasets_information():
+_data_info_cache = None
+_data_info_cached_at = 0.0
+_data_info_lock = threading.Lock()
+
+
+def _data_info_cache_ttl():
+    try:
+        return max(0, int(os.environ.get('MAPROOM_DATA_INFO_TTL', '300')))
+    except ValueError:
+        return 300
+
+
+def get_datasets_information(force_refresh=False):
+    """Return dataset metadata without reopening every Zarr store per request.
+
+    The cache is local to each uWSGI worker.  A five-minute default keeps page
+    requests fast while allowing newly published data to appear promptly. Set
+    MAPROOM_DATA_INFO_TTL=0 to disable it, or call with force_refresh=True.
+    """
+    global _data_info_cache, _data_info_cached_at
+
+    ttl = _data_info_cache_ttl()
+    now = time.monotonic()
+    if (
+        not force_refresh
+        and ttl > 0
+        and _data_info_cache is not None
+        and now - _data_info_cached_at < ttl
+    ):
+        return _data_info_cache
+
+    with _data_info_lock:
+        now = time.monotonic()
+        if (
+            not force_refresh
+            and ttl > 0
+            and _data_info_cache is not None
+            and now - _data_info_cached_at < ttl
+        ):
+            return _data_info_cache
+
+        result = _read_datasets_information()
+        _data_info_cache = result
+        _data_info_cached_at = time.monotonic()
+        return result
+
+
+def _read_datasets_information():
     datasets = GLOBAL_CONFIG['datasets']
 
     data_info = {}
