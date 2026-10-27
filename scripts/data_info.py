@@ -78,7 +78,8 @@ def get_datasets_information():
     datasets_info = {
         'ALL': 'Analysis datasets',
         'MON': 'Monitoring datasets',
-        'CLM': 'Climatology datasets'
+        'CLM': 'Climatology datasets',
+        'ADJ': 'Bias corrected datasets'
     }
 
     out = {}
