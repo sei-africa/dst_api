@@ -26,7 +26,7 @@ from .data_info import get_datasets_information
 
 def get_spei_data(params):
     cache_key = hash_pamars_spei(params)
-    cache.delete(cache_key)
+    # cache.delete(cache_key)
     spei_data = cache.get(cache_key)
 
     if spei_data is None:
